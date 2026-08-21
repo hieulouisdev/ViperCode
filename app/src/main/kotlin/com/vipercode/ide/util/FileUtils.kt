@@ -90,19 +90,27 @@ object FileUtils {
      * [MAX_FILE_BYTES], the read is truncated and the [EditorTab] will
      * be marked read-only by the caller (handled at the repository layer).
      */
-    suspend fun readText(context: Context, uri: Uri): String = runCatching {
-        val resolver = context.contentResolver
-        val size = resolver.openAssetFileDescriptor(uri, "r")?.use { it.length } ?: -1L
-        val truncate = size in 1..Long.MAX_VALUE && size > MAX_FILE_BYTES
-        resolver.openInputStream(uri)?.use { input ->
-            val reader = BufferedReader(InputStreamReader(input, StandardCharsets.UTF_8))
-            if (!truncate) reader.readText() else {
-                val buf = CharArray(MAX_FILE_BYTES.toInt())
-                val read = reader.read(buf)
-                if (read <= 0) "" else String(buf, 0, read)
-            }
-        } ?: ""
-    }.getOrElse { throw IOException("Read failed: ${it.message}", it) }
+    suspend fun readText(context: Context, uri: Uri): String {
+        return try {
+            val resolver = context.contentResolver
+            val size = resolver.openAssetFileDescriptor(uri, "r")?.use { it.length } ?: -1L
+            val truncate = size in 1..Long.MAX_VALUE && size > MAX_FILE_BYTES
+            resolver.openInputStream(uri)?.use { input ->
+                val reader = BufferedReader(InputStreamReader(input, StandardCharsets.UTF_8))
+                if (!truncate) reader.readText() else {
+                    val buf = CharArray(MAX_FILE_BYTES.toInt())
+                    val read = reader.read(buf)
+                    if (read <= 0) "" else String(buf, 0, read)
+                }
+            } ?: ""
+        } catch (e: Throwable) {
+            // Rethrow coroutine cancellation so structured concurrency works
+            // correctly. Without this, a cancelled IO read would surface as
+            // a generic IOException to the parent coroutine.
+            if (e is kotlinx.coroutines.CancellationException) throw e
+            throw IOException("Read failed: ${e.message}", e)
+        }
+    }
 
     /**
      * Writes [text] back to [uri], replacing the previous content.
@@ -110,18 +118,23 @@ object FileUtils {
      * opening the folder, OR writes directly to the local file for
      * `file://` URIs.
      */
-    suspend fun writeText(context: Context, uri: Uri, text: String): Unit = runCatching {
-        val s = uri.toString()
-        if (s.startsWith("file://")) {
-            val path = uri.path ?: throw IOException("Invalid file uri: $uri")
-            File(path).writeText(text, StandardCharsets.UTF_8)
-            return@runCatching
+    suspend fun writeText(context: Context, uri: Uri, text: String) {
+        try {
+            val s = uri.toString()
+            if (s.startsWith("file://")) {
+                val path = uri.path ?: throw IOException("Invalid file uri: $uri")
+                File(path).writeText(text, StandardCharsets.UTF_8)
+                return
+            }
+            val resolver = context.contentResolver
+            resolver.openOutputStream(uri, "wt")?.use { os ->
+                OutputStreamWriter(os, StandardCharsets.UTF_8).use { it.write(text) }
+            } ?: throw IOException("Open output stream returned null")
+        } catch (e: Throwable) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
+            throw IOException("Write failed: ${e.message}", e)
         }
-        val resolver = context.contentResolver
-        resolver.openOutputStream(uri, "wt")?.use { os ->
-            OutputStreamWriter(os, StandardCharsets.UTF_8).use { it.write(text) }
-        } ?: throw IOException("Open output stream returned null")
-    }.getOrElse { throw IOException("Write failed: ${it.message}", it) }
+    }
 
     /**
      * Lists the children of [dirUri] as [FileNode]s. Returns an empty
@@ -131,13 +144,15 @@ object FileUtils {
      * then files follow in the same order — matches the UX of most
      * desktop file explorers.
      */
-    suspend fun listChildren(context: Context, dirUri: Uri): List<FileNode> = runCatching {
-        val dir = resolve(context, dirUri)
-            ?: return emptyList()
+    suspend fun listChildren(context: Context, dirUri: Uri): List<FileNode> = try {
+        val dir = resolve(context, dirUri) ?: return emptyList()
         if (!dir.isDirectory) return emptyList()
         dir.listFiles().map { it.toFileNode(parent = dirUri) }
             .sortedWith(compareBy({ !it.isDirectory }, { it.name.lowercase() }))
-    }.getOrElse { emptyList() }
+    } catch (e: Throwable) {
+        if (e is kotlinx.coroutines.CancellationException) throw e
+        emptyList()
+    }
 
     /**
      * Creates a new file inside [parentUri] with [name]. If a file with
@@ -145,29 +160,41 @@ object FileUtils {
      * call never overwrites existing data.
      */
     suspend fun createFile(context: Context, parentUri: Uri, name: String): FileNode? =
-        runCatching {
+        try {
             val parent = resolve(context, parentUri) ?: return null
             val finalName = uniqueName(parent, name)
             val mime = mimeFromName(name)
             val created = parent.createFile(mime, finalName) ?: return null
             created.toFileNode(parent = parentUri)
-        }.getOrNull()
+        } catch (e: Throwable) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
+            null
+        }
 
     suspend fun createDirectory(context: Context, parentUri: Uri, name: String): FileNode? =
-        runCatching {
+        try {
             val parent = resolve(context, parentUri) ?: return null
             val finalName = uniqueName(parent, name, isDir = true)
             val created = parent.createDirectory(finalName) ?: return null
             created.toFileNode(parent = parentUri)
-        }.getOrNull()
+        } catch (e: Throwable) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
+            null
+        }
 
-    suspend fun rename(context: Context, uri: Uri, newName: String): Boolean = runCatching {
+    suspend fun rename(context: Context, uri: Uri, newName: String): Boolean = try {
         resolve(context, uri)?.renameTo(newName) ?: false
-    }.getOrDefault(false)
+    } catch (e: Throwable) {
+        if (e is kotlinx.coroutines.CancellationException) throw e
+        false
+    }
 
-    suspend fun delete(context: Context, uri: Uri): Boolean = runCatching {
+    suspend fun delete(context: Context, uri: Uri): Boolean = try {
         resolve(context, uri)?.delete() ?: false
-    }.getOrDefault(false)
+    } catch (e: Throwable) {
+        if (e is kotlinx.coroutines.CancellationException) throw e
+        false
+    }
 
     private fun uniqueName(parent: DocumentFile, name: String, isDir: Boolean = false): String {
         if (parent.findFile(name) == null) return name
@@ -176,12 +203,14 @@ object FileUtils {
             isDir || dot < 0 -> name to ""
             else -> name.substring(0, dot) to name.substring(dot)
         }
-        var i = 1
-        while (true) {
+        // Cap the loop to avoid infinite recursion on buggy providers.
+        for (i in 1..1000) {
             val candidate = "$base ($i)$ext"
             if (parent.findFile(candidate) == null) return candidate
-            i++
         }
+        // Last-resort fallback — append a UUID suffix if all numeric
+        // candidates somehow collided.
+        return "$base (${java.util.UUID.randomUUID().toString().take(8)})$ext"
     }
 
     private fun mimeFromName(name: String): String {

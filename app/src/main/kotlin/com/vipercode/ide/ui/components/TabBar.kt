@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -71,6 +72,9 @@ private fun TabChip(
 ) {
     val bg = if (active) MaterialTheme.colorScheme.surface
     else MaterialTheme.colorScheme.surfaceVariant
+    // v0.0.3: cap the chip width so a single long file name can't push
+    // every other chip off-screen. The chip still grows for short names
+    // but ellipsises after 180 dp.
     Box(
         modifier = Modifier
             .height(36.dp)
@@ -79,7 +83,10 @@ private fun TabChip(
             .padding(horizontal = 12.dp),
         contentAlignment = Alignment.Center,
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.widthIn(max = 180.dp, min = 60.dp),
+        ) {
             if (tab.isDirty) {
                 Box(
                     modifier = Modifier
@@ -96,6 +103,7 @@ private fun TabChip(
                 else MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f, fill = false),
             )
             Spacer(Modifier.width(8.dp))
             Box(

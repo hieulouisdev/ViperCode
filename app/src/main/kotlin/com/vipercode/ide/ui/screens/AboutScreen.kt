@@ -97,6 +97,9 @@ fun AboutScreen(onBack: () -> Unit) {
                         "Material 3 dynamic theming (Android 12+)",
                         "Optimised for Android 7.1.1+ (API 25)",
                         "Word wrap, line numbers, auto-indent",
+                        "Find & Replace with regex + case toggle (v0.0.3)",
+                        "Live HTML/CSS/JS preview via WebView (v0.0.3)",
+                        "Cursor position persistence across tab switches (v0.0.3)",
                     ),
                 )
                 SectionTitle("Tech stack")
@@ -110,10 +113,11 @@ fun AboutScreen(onBack: () -> Unit) {
                         "AndroidX DataStore Preferences",
                         "AndroidX DocumentFile & Navigation Compose",
                         "AndroidX Splash Screen compat",
+                        "WebView for live HTML/CSS/JS preview",
                     ),
                 )
                 HorizontalDivider()
-                InfoLine("Version", "v" + BuildConfig.VERSION_NAME + " (release)")
+                InfoLine("Version", "v" + BuildConfig.VERSION_NAME + " (" + BuildConfig.BUILD_TYPE + ")")
                 InfoLine("Build", BuildConfig.VERSION_CODE.toString())
                 InfoLine("Developer", "hieulouisdev")
                 InfoLine("License", "MIT")

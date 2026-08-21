@@ -274,8 +274,14 @@ object SyntaxHighlighter {
                     }
                     // Annotations
                     c == '@' -> {
+                        // v0.0.2 had `end > i + 1` which was always true
+                        // because `scanIdentifier(...) + 1` is at least
+                        // `i + 1 + 0 = i + 1`. We now require `end > i + 2`
+                        // so an `@` followed by a non-identifier character
+                        // (e.g. `@!foo`) is no longer mis-highlighted as
+                        // an annotation.
                         val end = scanIdentifier(src, i + 1) + 1
-                        if (end > i + 1) {
+                        if (end > i + 2) {
                             append(src.substring(i, end))
                             addStyle(palette.annotation, i, end)
                             i = end

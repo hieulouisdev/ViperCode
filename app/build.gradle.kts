@@ -12,12 +12,35 @@ android {
         applicationId = "com.vipercode.ide"
         minSdk = 25
         targetSdk = 35
-        versionCode = 2
-        versionName = "0.0.2"
+        versionCode = 3
+        versionName = "0.0.3"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
             useSupportLibrary = true
+        }
+    }
+
+    // A shared debug keystore is used to sign BOTH debug and release
+    // variants so the GitHub Action can produce an installable APK
+    // without exposing any private signing material. End users who
+    // want their own key can override `VIPC_SIGNING_STORE_FILE` etc.
+    val storeFilePath = System.getenv("VIPC_SIGNING_STORE_FILE")
+    val storePassword = System.getenv("VIPC_SIGNING_STORE_PASSWORD") ?: "android"
+    val keyAlias = System.getenv("VIPC_SIGNING_KEY_ALIAS") ?: "vipercode"
+    val keyPassword = System.getenv("VIPC_SIGNING_KEY_PASSWORD") ?: "android"
+    val hasSigning = !storeFilePath.isNullOrBlank() && java.io.File(storeFilePath).exists()
+
+    signingConfigs {
+        if (hasSigning) {
+            create("viperRelease") {
+                this.storeFile = java.io.File(storeFilePath!!)
+                this.storePassword = storePassword
+                this.keyAlias = keyAlias
+                this.keyPassword = keyPassword
+                enableV1Signing = true
+                enableV2Signing = true
+            }
         }
     }
 
@@ -29,6 +52,11 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            // When a signing config is provided via env vars, sign the
+            // release variant with it; otherwise leave unsigned so the
+            // GitHub Action can fall back to apksigner with the bundled
+            // debug keystore.
+            if (hasSigning) signingConfig = signingConfigs.getByName("viperRelease")
         }
         debug {
             isMinifyEnabled = false

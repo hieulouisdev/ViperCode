@@ -1,6 +1,5 @@
 package com.vipercode.ide.ui.components
 
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -31,7 +30,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
-import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.text.font.FontFamily
@@ -40,17 +38,22 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.vipercode.ide.data.model.FileNode
 import com.vipercode.ide.util.FileUtils
+import com.vipercode.ide.util.Language
 
 /**
  * A scrollable tree view of the open workspace.
  *
- * Each directory entry keeps an "expanded" flag in the parent
- * composition so the tree can be reused across screens.
+ * v0.0.3 architecture change: the tree is now flattened into a
+ * single [List] of [FlatRow]s and rendered via a [LazyColumn].
+ * v0.0.2 used eager recursion inside `AnimatedVisibility { Column { sub.forEach { FileRow(...) } } }`
+ * — that composed the ENTIRE subtree eagerly, creating thousands of
+ * composables for large workspaces. The flattened approach gives us
+ * full virtualization: only visible rows are composed.
  *
  * Long-press a file/folder to surface the per-row context menu
- * (rename, delete, new file, new folder).
+ * (rename, delete).
  */
-@OptIn(ExperimentalFoundationApi::class, ExperimentalComposeUiApi::class)
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun FileExplorer(
     root: FileNode?,
@@ -65,21 +68,124 @@ fun FileExplorer(
         EmptyWorkspace(modifier = modifier)
         return
     }
+    // Flatten the visible portion of the tree into a list. Only
+    // expanded directories contribute their children; collapsed
+    // directories contribute only themselves.
+    val flatRows = flattenTree(root, children, expanded)
+
     LazyColumn(modifier = modifier.fillMaxSize()) {
-        item {
+        item(key = "header:${root.uri}") {
             FolderHeader(name = root.name)
         }
-        val nodes = children[root.uri].orEmpty()
-        items(nodes, key = { it.uri }) { node ->
-            FileRow(
-                node = node,
-                depth = 1,
-                children = children,
-                expanded = expanded,
+        items(flatRows, key = { it.node.uri.toString() + ":" + it.depth }) { row ->
+            FlatFileRow(
+                row = row,
+                isExpanded = row.node.uri in expanded,
                 onToggleFolder = onToggleFolder,
                 onOpenFile = onOpenFile,
                 onLongPress = onLongPress,
             )
+        }
+    }
+}
+
+/**
+ * Walks the tree depth-first, emitting a [FlatRow] for every node
+ * that should be visible given the current [expanded] set.
+ *
+ * Collapsed directories contribute only themselves; expanded directories
+ * also contribute their children (recursively).
+ */
+private fun flattenTree(
+    root: FileNode,
+    children: Map<android.net.Uri, List<FileNode>>,
+    expanded: Set<android.net.Uri>,
+): List<FlatRow> {
+    val out = mutableListOf<FlatRow>()
+    val stack = ArrayDeque<FlatRow>()
+    // Push root's children in REVERSE so we pop them in forward order.
+    children[root.uri].orEmpty().asReversed().forEach { child ->
+        stack.addLast(FlatRow(child, depth = 1))
+    }
+    while (stack.isNotEmpty()) {
+        val row = stack.removeLast()
+        out.add(row)
+        if (row.node.isDirectory && row.node.uri in expanded) {
+            children[row.node.uri].orEmpty().asReversed().forEach { child ->
+                stack.addLast(FlatRow(child, depth = row.depth + 1))
+            }
+        }
+    }
+    return out
+}
+
+private data class FlatRow(val node: FileNode, val depth: Int)
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun FlatFileRow(
+    row: FlatRow,
+    isExpanded: Boolean,
+    onToggleFolder: (android.net.Uri) -> Unit,
+    onOpenFile: (FileNode) -> Unit,
+    onLongPress: (FileNode) -> Unit,
+) {
+    val node = row.node
+    val rotate by animateFloatAsState(if (isExpanded) 90f else 0f, label = "chevron")
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .combinedClickable(
+                onClick = {
+                    if (node.isDirectory) onToggleFolder(node.uri)
+                    else onOpenFile(node)
+                },
+                onLongClick = { onLongPress(node) },
+            )
+            .padding(start = (row.depth * 12 + 8).dp, end = 8.dp, top = 6.dp, bottom = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (node.isDirectory) {
+            IconButton(
+                onClick = { onToggleFolder(node.uri) },
+                modifier = Modifier.size(20.dp),
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.ChevronRight,
+                    contentDescription = null,
+                    modifier = Modifier.rotate(rotate),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        } else {
+            Spacer(Modifier.width(20.dp))
+        }
+        Spacer(Modifier.width(8.dp))
+        Icon(
+            imageVector = if (node.isDirectory) Icons.Filled.Folder else iconFor(node),
+            contentDescription = null,
+            tint = if (node.isDirectory) MaterialTheme.colorScheme.primary
+            else MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(18.dp),
+        )
+        Spacer(Modifier.width(8.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = node.name,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            if (!node.isDirectory && node.size > 0) {
+                Text(
+                    text = FileUtils.humanSize(node.size),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 11.sp,
+                )
+            }
         }
     }
 }
@@ -108,97 +214,8 @@ private fun FolderHeader(name: String) {
     }
 }
 
-@OptIn(ExperimentalFoundationApi::class)
-@Composable
-private fun FileRow(
-    node: FileNode,
-    depth: Int,
-    children: Map<android.net.Uri, List<FileNode>>,
-    expanded: Set<android.net.Uri>,
-    onToggleFolder: (android.net.Uri) -> Unit,
-    onOpenFile: (FileNode) -> Unit,
-    onLongPress: (FileNode) -> Unit,
-) {
-    val isExpanded = node.uri in expanded
-    val rotate by animateFloatAsState(if (isExpanded) 90f else 0f, label = "chevron")
-    Column {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .combinedClickable(
-                    onClick = {
-                        if (node.isDirectory) onToggleFolder(node.uri)
-                        else onOpenFile(node)
-                    },
-                    onLongClick = { onLongPress(node) },
-                )
-                .padding(start = (depth * 12 + 8).dp, end = 8.dp, top = 6.dp, bottom = 6.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            if (node.isDirectory) {
-                IconButton(
-                    onClick = { onToggleFolder(node.uri) },
-                    modifier = Modifier.size(20.dp),
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.ChevronRight,
-                        contentDescription = null,
-                        modifier = Modifier.rotate(rotate),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            } else {
-                Spacer(Modifier.width(20.dp))
-            }
-            Spacer(Modifier.width(8.dp))
-            Icon(
-                imageVector = if (node.isDirectory) Icons.Filled.Folder else iconFor(node),
-                contentDescription = null,
-                tint = if (node.isDirectory) MaterialTheme.colorScheme.primary
-                else MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(18.dp),
-            )
-            Spacer(Modifier.width(8.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = node.name,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                if (!node.isDirectory && node.size > 0) {
-                    Text(
-                        text = FileUtils.humanSize(node.size),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontFamily = FontFamily.Monospace,
-                        fontSize = 11.sp,
-                    )
-                }
-            }
-        }
-        AnimatedVisibility(visible = isExpanded && node.isDirectory) {
-            val sub = children[node.uri].orEmpty()
-            Column {
-                sub.forEach { child ->
-                    FileRow(
-                        node = child,
-                        depth = depth + 1,
-                        children = children,
-                        expanded = expanded,
-                        onToggleFolder = onToggleFolder,
-                        onOpenFile = onOpenFile,
-                        onLongPress = onLongPress,
-                    )
-                }
-            }
-        }
-    }
-}
-
 private fun iconFor(node: FileNode) = when (node.language) {
-    com.vipercode.ide.util.Language.MARKDOWN, com.vipercode.ide.util.Language.TEXT -> Icons.Outlined.InsertDriveFile
+    Language.MARKDOWN, Language.TEXT -> Icons.Outlined.InsertDriveFile
     else -> Icons.Filled.Description
 }
 

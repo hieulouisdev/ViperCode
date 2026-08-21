@@ -1,7 +1,7 @@
 <resources>
     <string name="app_name">ViperCode</string>
     <string name="app_tagline">The class of perfection</string>
-    <string name="app_version">v0.0.2</string>
+    <string name="app_version">v0.0.3</string>
 
     <!-- Navigation -->
     <string name="nav_home">Workspace</string>

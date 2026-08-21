@@ -48,6 +48,7 @@ import com.vipercode.ide.data.prefs.SettingsRepository
 import com.vipercode.ide.data.repo.FileRepository
 import com.vipercode.ide.ui.components.FileExplorer
 import com.vipercode.ide.util.FileUtils
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 /**
@@ -85,7 +86,7 @@ fun HomeScreen(
     // Restore the previous folder OR fall back to the local workspace.
     LaunchedEffect(Unit) {
         if (openFolder != null) return@LaunchedEffect
-        val saved = SettingsRepository.lastFolderUri.now()
+        val saved = SettingsRepository.lastFolderUri.first()
         if (saved.isNotBlank()) {
             val restored = runCatching {
                 val uri = Uri.parse(saved)
@@ -96,11 +97,17 @@ fun HomeScreen(
                     expanded = expanded + uri
                     true
                 } else {
-                    // SAF URI — re-grant the persistable permission.
+                    // SAF URI — re-grant BOTH READ and WRITE persistable
+                    // permissions. v0.0.2 only took READ, which meant
+                    // saves silently failed with SecurityException after
+                    // relaunch. Many providers reject WRITE for tree URIs
+                    // that were originally picked with the SAF picker,
+                    // so the call is wrapped in runCatching.
                     runCatching {
                         context.contentResolver.takePersistableUriPermission(
                             uri,
-                            Intent.FLAG_GRANT_READ_URI_PERMISSION,
+                            Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                                Intent.FLAG_GRANT_WRITE_URI_PERMISSION,
                         )
                     }
                     repo.openFolder(uri)
@@ -111,14 +118,12 @@ fun HomeScreen(
             if (restored) return@LaunchedEffect
         }
         // Fall back to the local offline workspace.
-        if (SettingsRepository.useLocalWorkspace.now()) {
+        if (SettingsRepository.useLocalWorkspace.first()) {
             val local = FileUtils.localWorkspaceRoot(context)
             val uri = Uri.fromFile(local)
-            scope.launch {
-                SettingsRepository.lastFolderUri.set(uri.toString())
-                repo.openFolder(uri)
-                expanded = expanded + uri
-            }
+            SettingsRepository.lastFolderUri.set(uri.toString())
+            repo.openFolder(uri)
+            expanded = expanded + uri
         }
     }
 

@@ -70,7 +70,13 @@ object SettingsRepository {
         type == Int::class.javaObjectType -> (value as Int) as T
         type == Boolean::class.javaObjectType -> (value as Boolean) as T
         type == String::class.java -> (value as String) as T
-        type.isEnum -> type.enumConstants!!.first { (it as Enum<*>).name == value } as T
+        // Safe decode: if a stored enum name no longer matches any
+        // variant (e.g. an enum value was renamed across versions),
+        // fall back to the default instead of throwing
+        // NoSuchElementException.
+        type.isEnum -> type.enumConstants!!
+            .map { it as Enum<*> }
+            .firstOrNull { it.name == value } as? T ?: default
         else -> value as T
     }
 
@@ -87,6 +93,13 @@ object SettingsRepository {
      * on first collection / first key lookup, which guarantees the
      * singleton's [ctx] is already set by the time the JVM needs it.
      *
+     * v0.0.3 changes:
+     *   - [default] is now publicly exposed so callers can pass it as the
+     *     `initial` value of `collectAsState`, avoiding a blocking
+     *     `now()` call during composition.
+     *   - [first] helper added for one-shot reads inside coroutines
+     *     (replaces the discouraged `now()` inside `LaunchedEffect`).
+     *
      * (v0.0.1 had [ctx] as `lateinit var` and eagerly built the Flow at
      * Pref-construction time — which ran before [init] could assign [ctx]
      * and crashed the app with UninitializedPropertyAccessException on
@@ -95,7 +108,7 @@ object SettingsRepository {
     class Pref<T : Any>(
         private val type: Class<T>,
         private val name: String,
-        private val default: T,
+        val default: T,
     ) {
         val key: Preferences.Key<*> by lazy { keyOf(name, type) }
 
@@ -107,7 +120,11 @@ object SettingsRepository {
             }
         }
 
+        /** Blocking one-shot read. Use sparingly — only on background threads. */
         fun now(): T = runBlocking { flow.first() }
+
+        /** Suspending one-shot read. Preferred over [now] in coroutines. */
+        suspend fun first(): T = flow.first()
 
         suspend fun set(value: T) {
             appContext().dataStore.edit { prefs ->

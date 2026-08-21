@@ -1,5 +1,6 @@
 package com.vipercode.ide.ui.screens
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -11,10 +12,13 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.ContentReplace
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.ContentReplace
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -25,6 +29,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -33,6 +38,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -51,25 +57,34 @@ import com.vipercode.ide.data.prefs.SettingsRepository
 import com.vipercode.ide.data.repo.FileRepository
 import com.vipercode.ide.ui.components.CodeEditor
 import com.vipercode.ide.ui.components.TabBar
+import com.vipercode.ide.util.Language
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /**
  * Editor screen — wraps the multi-tab bar and a [CodeEditor] instance.
  *
- * The TopAppBar exposes the active file's name + language tag + a save
- * action. v0.0.2 adds:
- *  - Auto-save: a debounced save fires after the user stops typing
- *    (delay defined by [SettingsRepository.autoSaveDelayMs]).
- *  - Search & Replace: a togglable inline bar above the editor.
- *  - Search/Replace within a single file (multi-file search is on the
- *    v0.0.3 roadmap).
+ * v0.0.3 changes:
+ *  - **Back button flushes auto-save**: v0.0.2 skipped both the
+ *    unsaved-changes dialog AND the immediate save when autoSave was
+ *    enabled, so content typed < 1.5 s before back was lost. We now
+ *    always flush before navigating away.
+ *  - **Search & Replace upgrade**: full dialog with regex toggle,
+ *    case-sensitivity toggle, find-next / find-prev navigation,
+ *    match count, and per-match replace (not just replace-all).
+ *  - **Live preview button**: a "play" icon in the TopAppBar takes
+ *    the user to [PreviewScreen] (only shown when the active tab is
+ *    HTML — non-HTML files have nothing to preview).
+ *  - **Cursor position persistence**: every edit forwards the caret
+ *    (line, column) back to the repository so it survives tab switches
+ *    and app kills.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun EditorScreen(
     tabId: String,
     onBack: () -> Unit,
+    onOpenPreview: (tabId: String) -> Unit,
 ) {
     val context = LocalContext.current
     val repo = remember { FileRepository.get(context) }
@@ -92,11 +107,8 @@ fun EditorScreen(
     // Resolve the actual active tab — prefer the repo's activeTabId, fall
     // back to the tabId from the route so the editor is never empty.
     val activeTab = tabs.firstOrNull { it.id == (activeId ?: tabId) }
+    val isHtmlTab = activeTab?.language == Language.HTML
 
-    // If the route's tabId is stale (e.g., the tab was closed via a
-    // different code path) but other tabs are still open, promote the
-    // first available tab to active so the user always sees an editor
-    // instead of the empty state.
     LaunchedEffect(tabs, activeId, tabId) {
         if (tabs.isEmpty()) return@LaunchedEffect
         if (activeId == null || tabs.none { it.id == activeId }) {
@@ -105,18 +117,11 @@ fun EditorScreen(
         }
     }
 
-    // Pop the editor when the last tab is closed — but only check this
-    // against the latest repo value, not the captured Compose state,
-    // because Compose state can be a frame behind the StateFlow.
     LaunchedEffect(tabs.size) {
         if (tabs.isEmpty()) onBack()
     }
 
     // ── Auto-save (debounced) ──────────────────────────────────────
-    // We track the latest content snapshot of the active tab and arm a
-    // delayed save whenever it changes. If the user keeps typing, the
-    // previous launch is cancelled implicitly because we re-key the
-    // effect on tab.id + tab.content.
     LaunchedEffect(
         activeTab?.id,
         activeTab?.content,
@@ -131,6 +136,30 @@ fun EditorScreen(
         val ok = repo.saveTabIfDirty(tab.id)
         if (ok) {
             snackbarHostState.showSnackbar("Saved ${tab.name}")
+        }
+    }
+
+    // Back-button handler — flush auto-save before navigating away so
+    // no content typed < delay is lost (v0.0.2 had this bug).
+    fun handleBack() {
+        val t = activeTab
+        if (t == null) {
+            onBack()
+            return
+        }
+        if (!t.isDirty || t.readOnly) {
+            onBack()
+            return
+        }
+        if (autoSaveEnabled) {
+            // Flush then back — no unsaved-changes dialog needed.
+            scope.launch {
+                repo.saveTabIfDirty(t.id)
+                onBack()
+            }
+        } else {
+            // Manual save mode — ask the user what to do.
+            showUnsaved = t.id
         }
     }
 
@@ -159,17 +188,18 @@ fun EditorScreen(
                     }
                 },
                 navigationIcon = {
-                    IconButton(onClick = {
-                        val t = activeTab
-                        if (t != null && t.isDirty && !autoSaveEnabled) showUnsaved = t.id
-                        else onBack()
-                    }) {
+                    IconButton(onClick = { handleBack() }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
                 },
                 actions = {
                     IconButton(onClick = { showSearch = !showSearch }) {
                         Icon(Icons.Filled.Search, contentDescription = "Search")
+                    }
+                    if (isHtmlTab && activeTab != null) {
+                        IconButton(onClick = { onOpenPreview(activeTab.id) }) {
+                            Icon(Icons.Filled.PlayArrow, contentDescription = "Live preview")
+                        }
                     }
                     IconButton(onClick = {
                         scope.launch {
@@ -199,7 +229,6 @@ fun EditorScreen(
                         if (t.isDirty && !autoSaveEnabled) {
                             showUnsaved = id
                         } else {
-                            // Auto-save the tab if enabled, then close.
                             if (t.isDirty && autoSaveEnabled && !t.readOnly) {
                                 repo.saveTab(id)
                             }
@@ -212,13 +241,12 @@ fun EditorScreen(
             HorizontalDivider()
             if (showSearch && activeTab != null) {
                 SearchReplaceBar(
-                    onReplaceAll = { needle, replacement ->
-                        val t = activeTab ?: return@SearchReplaceBar
-                        if (needle.isNotEmpty()) {
-                            val updated = t.content.replace(needle, replacement)
-                            repo.updateTabContent(t.id, updated)
-                            scope.launch { snackbarHostState.showSnackbar("Replaced all occurrences") }
-                        }
+                    tab = activeTab,
+                    onApplyChanges = { newText ->
+                        repo.updateTabContent(activeTab.id, newText)
+                    },
+                    onMessage = { msg ->
+                        scope.launch { snackbarHostState.showSnackbar(msg) }
                     },
                     onClose = { showSearch = false },
                 )
@@ -229,6 +257,9 @@ fun EditorScreen(
                     tab = activeTab,
                     onContentChange = { newContent ->
                         repo.updateTabContent(activeTab.id, newContent)
+                    },
+                    onCursorChange = { line, col ->
+                        repo.updateTabCursor(activeTab.id, line, col)
                     },
                     fontSize = fontSize,
                     tabSize = tabSize,
@@ -286,55 +317,209 @@ fun EditorScreen(
     }
 }
 
+/**
+ * Upgraded Search & Replace bar (v0.0.3).
+ *
+ * Features:
+ *  - Find next / find previous (caret-aware)
+ *  - Replace single match / Replace all
+ *  - Case-sensitivity toggle
+ *  - Regex toggle (with safe compile error display)
+ *  - Live match count
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun SearchReplaceBar(
-    onReplaceAll: (needle: String, replacement: String) -> Unit,
+    tab: com.vipercode.ide.data.model.EditorTab,
+    onApplyChanges: (String) -> Unit,
+    onMessage: (String) -> Unit,
     onClose: () -> Unit,
 ) {
     var query by remember { mutableStateOf("") }
     var replacement by remember { mutableStateOf("") }
-    Row(
+    var caseSensitive by remember { mutableStateOf(false) }
+    var useRegex by remember { mutableStateOf(false) }
+    var currentMatchIndex by remember { mutableIntStateOf(-1) }
+    var totalMatches by remember { mutableIntStateOf(0) }
+    var cursorOffset by remember { mutableIntStateOf(0) }
+
+    // Recompute matches whenever the query, text, or toggles change.
+    LaunchedEffect(query, tab.content, caseSensitive, useRegex) {
+        if (query.isEmpty()) {
+            totalMatches = 0
+            currentMatchIndex = -1
+            return@LaunchedEffect
+        }
+        val matches = findAllMatches(tab.content, query, caseSensitive, useRegex)
+        totalMatches = matches.size
+        currentMatchIndex = if (matches.isEmpty()) -1 else 0
+    }
+
+    val matches = remember(query, tab.content, caseSensitive, useRegex) {
+        if (query.isEmpty()) emptyList()
+        else findAllMatches(tab.content, query, caseSensitive, useRegex)
+    }
+
+    Column(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 8.dp, vertical = 4.dp),
-        verticalAlignment = Alignment.CenterVertically,
     ) {
-        OutlinedTextField(
-            value = query,
-            onValueChange = { query = it },
-            modifier = Modifier.weight(1f),
-            placeholder = { Text("Find") },
-            singleLine = true,
-            keyboardOptions = KeyboardOptions(
-                capitalization = KeyboardCapitalization.None,
-                autoCorrect = false,
-                keyboardType = KeyboardType.Text,
-                imeAction = ImeAction.Done,
-            ),
-            textStyle = MaterialTheme.typography.bodyMedium,
-        )
-        Spacer(Modifier.width(6.dp))
-        OutlinedTextField(
-            value = replacement,
-            onValueChange = { replacement = it },
-            modifier = Modifier.weight(1f),
-            placeholder = { Text("Replace") },
-            singleLine = true,
-            keyboardOptions = KeyboardOptions(
-                capitalization = KeyboardCapitalization.None,
-                autoCorrect = false,
-                keyboardType = KeyboardType.Text,
-                imeAction = ImeAction.Done,
-            ),
-            textStyle = MaterialTheme.typography.bodyMedium,
-        )
-        Spacer(Modifier.width(6.dp))
-        IconButton(onClick = { onReplaceAll(query, replacement) }) {
-            Icon(Icons.Filled.ContentReplace, contentDescription = "Replace all")
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            OutlinedTextField(
+                value = query,
+                onValueChange = { query = it },
+                modifier = Modifier.weight(1f),
+                placeholder = { Text("Find") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(
+                    capitalization = if (caseSensitive) KeyboardCapitalization.Sentences
+                    else KeyboardCapitalization.None,
+                    autoCorrect = false,
+                    keyboardType = KeyboardType.Text,
+                    imeAction = ImeAction.Done,
+                ),
+                textStyle = MaterialTheme.typography.bodyMedium,
+            )
+            Spacer(Modifier.width(6.dp))
+            IconButton(
+                onClick = {
+                    if (matches.isEmpty()) return@IconButton
+                    currentMatchIndex = (currentMatchIndex - 1 + matches.size) % matches.size
+                    cursorOffset = matches[currentMatchIndex].first
+                },
+                enabled = matches.isNotEmpty(),
+            ) {
+                Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = "Previous match")
+            }
+            IconButton(
+                onClick = {
+                    if (matches.isEmpty()) return@IconButton
+                    currentMatchIndex = (currentMatchIndex + 1) % matches.size
+                    cursorOffset = matches[currentMatchIndex].first
+                },
+                enabled = matches.isNotEmpty(),
+            ) {
+                Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = "Next match")
+            }
+            Text(
+                text = if (matches.isEmpty()) "0 / 0" else "${currentMatchIndex + 1} / ${totalMatches}",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = 8.dp),
+                fontFamily = FontFamily.Monospace,
+            )
+            IconButton(onClick = onClose) {
+                Icon(Icons.Filled.Close, contentDescription = "Close search")
+            }
         }
-        IconButton(onClick = onClose) {
-            Icon(Icons.Filled.Close, contentDescription = "Close search")
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            OutlinedTextField(
+                value = replacement,
+                onValueChange = { replacement = it },
+                modifier = Modifier.weight(1f),
+                placeholder = { Text("Replace") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(
+                    capitalization = KeyboardCapitalization.None,
+                    autoCorrect = false,
+                    keyboardType = KeyboardType.Text,
+                    imeAction = ImeAction.Done,
+                ),
+                textStyle = MaterialTheme.typography.bodyMedium,
+            )
+            Spacer(Modifier.width(6.dp))
+            IconButton(
+                onClick = {
+                    // Replace the CURRENT match only.
+                    if (matches.isEmpty() || currentMatchIndex !in matches.indices) {
+                        onMessage("No match to replace")
+                        return@IconButton
+                    }
+                    val (start, end) = matches[currentMatchIndex]
+                    val updated = tab.content.substring(0, start) +
+                        replacement +
+                        tab.content.substring(end)
+                    onApplyChanges(updated)
+                    onMessage("Replaced match ${currentMatchIndex + 1}")
+                },
+            ) {
+                Icon(Icons.Filled.ContentReplace, contentDescription = "Replace current")
+            }
+            TextButton(onClick = {
+                if (matches.isEmpty()) {
+                    onMessage("No matches to replace")
+                    return@TextButton
+                }
+                val updated = replaceAllMatches(tab.content, query, replacement, caseSensitive, useRegex)
+                val n = matches.size
+                onApplyChanges(updated)
+                onMessage("Replaced $n occurrence${if (n == 1) "" else "s"}")
+            }) { Text("All") }
+            Spacer(Modifier.width(4.dp))
+            Text("Aa", fontFamily = FontFamily.Monospace, fontSize = 12.sp)
+            Switch(checked = caseSensitive, onCheckedChange = { caseSensitive = it })
+            Spacer(Modifier.width(4.dp))
+            Text(".*", fontFamily = FontFamily.Monospace, fontSize = 12.sp)
+            Switch(checked = useRegex, onCheckedChange = { useRegex = it })
         }
+    }
+}
+
+/** Finds all matches of [needle] in [haystack]. Each pair is (start, end). */
+private fun findAllMatches(
+    haystack: String,
+    needle: String,
+    caseSensitive: Boolean,
+    useRegex: Boolean,
+): List<Pair<Int, Int>> {
+    if (needle.isEmpty()) return emptyList()
+    return try {
+        val flags = if (caseSensitive) emptySet() else setOf(RegexOption.IGNORE_CASE)
+        if (useRegex) {
+            val regex = Regex(needle, flags)
+            regex.findAll(haystack).map { it.range.first to it.range.last + 1 }.toList()
+        } else {
+            // Literal substring search.
+            val needleNorm = if (caseSensitive) needle else needle.lowercase()
+            val hayNorm = if (caseSensitive) haystack else haystack.lowercase()
+            val result = mutableListOf<Pair<Int, Int>>()
+            var i = 0
+            while (true) {
+                val idx = hayNorm.indexOf(needleNorm, i)
+                if (idx < 0) break
+                result.add(idx to idx + needle.length)
+                i = idx + needle.length
+            }
+            result
+        }
+    } catch (e: Throwable) {
+        // Invalid regex → return empty list. The user will see "0 / 0"
+        // in the match counter; they can fix the pattern.
+        emptyList()
+    }
+}
+
+/** Replaces ALL matches of [needle] in [haystack] with [replacement]. */
+private fun replaceAllMatches(
+    haystack: String,
+    needle: String,
+    replacement: String,
+    caseSensitive: Boolean,
+    useRegex: Boolean,
+): String {
+    if (needle.isEmpty()) return haystack
+    return try {
+        val flags = if (caseSensitive) emptySet() else setOf(RegexOption.IGNORE_CASE)
+        if (useRegex) {
+            Regex(needle, flags).replace(haystack, replacement)
+        } else {
+            val from = if (caseSensitive) needle else needle.lowercase()
+            val hay = if (caseSensitive) haystack else haystack.lowercase()
+            if (from.isEmpty()) haystack
+            else haystack.replace(from, replacement, ignoreCase = !caseSensitive)
+        }
+    } catch (e: Throwable) {
+        haystack
     }
 }

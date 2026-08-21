@@ -114,11 +114,30 @@ class FileRepository(private val appContext: Context) {
     }
 
     suspend fun openExternalFile(uri: Uri): EditorTab? {
-        // External URIs (content://) are opened directly via the same
-        // path as local files. SAF grants a transient read permission
-        // that the caller (MainActivity) has already attached to the
-        // intent — we don't need to copy the file into the local
-        // workspace to display it.
+        // External URIs (content://) arrive via ACTION_VIEW intents. The
+        // granted read permission is transient and tied to the Activity
+        // — without persisting it, saving later will throw
+        // SecurityException.
+        //
+        // Not every content provider supports persistable permissions, so
+        // we wrap the takePersistableUriPermission call in runCatching
+        // and continue even if it fails (the user can still view the
+        // file; only future writes will fail).
+        if (uri.toString().startsWith("content://")) {
+            runCatching {
+                val flags = android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                    android.content.Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                appContext.contentResolver.takePersistableUriPermission(uri, flags)
+            }
+            // Some providers throw if WRITE isn't granted; fall back to
+            // READ-only so at least the file can be displayed.
+            runCatching {
+                appContext.contentResolver.takePersistableUriPermission(
+                    uri,
+                    android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION,
+                )
+            }
+        }
         return openFile(uri)
     }
 
@@ -143,6 +162,19 @@ class FileRepository(private val appContext: Context) {
     fun updateTabContent(tabId: String, newContent: String) {
         _tabs.update { tabs ->
             tabs.map { if (it.id == tabId) it.copy(content = newContent) else it }
+        }
+    }
+
+    /**
+     * Updates the saved caret position (line + column, 0-indexed) of a
+     * tab without touching its content. Called by [CodeEditor] on every
+     * edit so the caret survives tab switches and process death.
+     */
+    fun updateTabCursor(tabId: String, line: Int, column: Int) {
+        _tabs.update { tabs ->
+            tabs.map {
+                if (it.id == tabId) it.copy(cursorLine = line, cursorColumn = column) else it
+            }
         }
     }
 
