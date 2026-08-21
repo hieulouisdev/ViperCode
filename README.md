@@ -26,12 +26,12 @@ designed from the ground up with the Android Storage Access Framework,
 Material 3 theming, and a fully Compose-native UI — no WebView, no legacy
 view system, no compromises on startup latency or rendering performance.
 
-ViperCode v0.0.1 is the first public release. It ships the foundation of
-the editor and the workspace; subsequent releases will build on this
-foundation with incremental syntax highlighting, an integrated terminal,
-Git integration, and a project-level build system.
+ViperCode v0.0.2 ships the editing core plus the offline-first
+workflow improvements: auto-save, search & replace, an offline local
+workspace, and a number of crash fixes that affected v0.0.1 on
+certain devices.
 
-## Features (v0.0.1)
+## Features (v0.0.2)
 
 - **Multi-language syntax highlighting** — built-in tokeniser for 30+
   languages including Kotlin, Java, Python, JavaScript/TypeScript, Go,
@@ -39,6 +39,15 @@ Git integration, and a project-level build system.
   YAML, TOML, Markdown, XML, JSON, HTML, CSS, and more.
 - **Multi-tab editing** — open multiple files at once; dirty-state
   tracking prevents accidental data loss.
+- **Auto-save** — dirty files are saved automatically after a short
+  idle delay (configurable, 500 ms–5 s).
+- **Search & Replace** — replace all occurrences within the active
+  file from a compact inline bar.
+- **Offline-first storage** — ViperCode ships with a default local
+  workspace under the app's private external storage so it works the
+  moment you install it, with no permission prompts and no internet.
+  The Storage Access Framework picker remains available for opening
+  any folder on the device.
 - **Storage Access Framework integration** — open any folder on the
   device (internal or external storage, Google Drive, Nextcloud, etc.)
   via the system folder picker. Permissions are persisted across
@@ -50,13 +59,35 @@ Git integration, and a project-level build system.
   active Android devices worldwide.
 - **Light / Dark / System theme modes** with full Material 3 component
   theming.
-- **Editor preferences** — adjustable font size, tab size, word wrap,
-  line numbers, auto-indent.
-- **Auto-save to SAF** — every save goes through the persistent URI
-  permission granted by the user, so files land back in the original
-  folder without any copy step.
+- **Editor preferences** — adjustable font size, tab size, font
+  family, word wrap, line numbers, auto-indent.
+- **Auto-save to SAF / local file** — every save goes back to the
+  original folder, whether it is a SAF tree URI or the local
+  workspace; no copy step.
 - **External file open** — tap any source file in your file manager and
   it opens directly in the editor.
+- **Robust auto-indent** — Tab expands to spaces; Enter copies the
+  previous line's indentation and adds an extra indent after `{`,
+  `(`, `[`, `:` and `=>`, no matter where the caret is.
+
+## Fixes since v0.0.1
+
+- **Critical**: fixed the `UninitializedPropertyAccessException` that
+  crashed the app on every launch. The root cause was an eagerly
+  constructed `Flow` inside `SettingsRepository.Pref` that read a
+  `lateinit` context before `init(context)` had run.
+- Removed a duplicate `Language.JAVA → emptySet()` entry in
+  `SyntaxHighlighter.KEYWORDS` that was shadowing the proper Java
+  keyword set.
+- Auto-indent now respects the caret position instead of assuming the
+  user is always appending at the end of the buffer.
+- Tab close no longer reads a stale `tabs` snapshot from Compose
+  state — it queries the repository directly so the back-navigation
+  check is correct.
+- The Save toolbar button now saves the *active* tab, not the tab id
+  that was first navigated to.
+- Hardcoded version strings in the splash and About screens replaced
+  with `BuildConfig.VERSION_NAME`.
 
 ## Tech stack
 
@@ -149,8 +180,8 @@ The v0.0.x line focuses on the editing experience:
 
 - **v0.0.1** — Foundation: file explorer, multi-tab editor, syntax
   highlighting for 30+ languages, Material 3 theming, settings.
-- **v0.0.2** — Async incremental syntax highlighting, auto-save,
-  search & replace in file.
+- **v0.0.2** — Offline local workspace, auto-save, search & replace,
+  robust auto-indent, crash fixes.
 - **v0.0.3** — Multi-file search, in-folder Git status display.
 - **v0.1.0** — Integrated terminal (Termux-compatible), LSP bridge for
   Kotlin/Java.

@@ -4,6 +4,7 @@ import android.content.Context
 import android.net.Uri
 import com.vipercode.ide.data.model.EditorTab
 import com.vipercode.ide.data.model.FileNode
+import com.vipercode.ide.data.prefs.SettingsRepository
 import com.vipercode.ide.util.FileUtils
 import com.vipercode.ide.util.LanguageDetector
 import kotlinx.coroutines.Dispatchers
@@ -12,14 +13,25 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.withContext
+import java.io.File
 
 /**
  * In-memory state holder for the ViperCode workspace.
  *
- * v0.0.1 keeps everything in memory: the currently open folder, the
- * cached file tree and the list of open editor tabs. Persistence is
- * handled by [com.vipercode.ide.data.prefs.SettingsRepository] for the
- * last-used folder URI; future versions will persist open tabs too.
+ * v0.0.2 keeps the open folder / file tree / open tabs in memory but
+ * adds **offline-first** persistence:
+ *
+ *  - The last opened folder URI is persisted in [SettingsRepository].
+ *  - A default local workspace (`getExternalFilesDir/workspace`) is used
+ *    the first time the app launches so the user can start editing
+ *    immediately without picking a SAF folder.
+ *  - All settings, including the last folder URI, are stored locally
+ *    in DataStore — no network access is ever required.
+ *
+ * Auto-save: dirty tabs are saved automatically after a configurable
+ * idle delay (see [SettingsRepository.autoSaveDelayMs]). The trigger
+ * lives in [com.vipercode.ide.ui.screens.EditorScreen]; this repository
+ * exposes [saveTabIfDirty] for it to call.
  *
  * The repository is safe to share across ViewModels — every mutation is
  * performed on [Dispatchers.IO] and the public state is read-only via
@@ -39,12 +51,17 @@ class FileRepository(private val appContext: Context) {
     private val _activeTabId = MutableStateFlow<String?>(null)
     val activeTabId: StateFlow<String?> = _activeTabId.asStateFlow()
 
+    /**
+     * Opens the given SAF tree URI or `file://` URI as the workspace.
+     * Falls back silently if the URI can no longer be resolved (e.g.
+     * the user revoked permission).
+     */
     suspend fun openFolder(uri: Uri) = withContext(Dispatchers.IO) {
         val doc = FileUtils.resolve(appContext, uri) ?: return@withContext
         if (!doc.isDirectory) return@withContext
         val root = FileNode(
             uri = uri,
-            name = doc.name ?: "Workspace",
+            name = doc.name ?: displayNameForLocal(uri),
             isDirectory = true,
             size = 0L,
             lastModified = doc.lastModified(),
@@ -53,6 +70,12 @@ class FileRepository(private val appContext: Context) {
         )
         _openFolder.value = root
         refreshDirectory(uri)
+    }
+
+    /** Closes the current workspace but keeps the tabs in memory. */
+    fun closeFolder() {
+        _openFolder.value = null
+        _tree.value = emptyMap()
     }
 
     suspend fun refreshDirectory(uri: Uri) = withContext(Dispatchers.IO) {
@@ -67,7 +90,7 @@ class FileRepository(private val appContext: Context) {
             return@withContext existing
         }
         val doc = FileUtils.resolve(appContext, uri) ?: return@withContext null
-        val name = doc.name ?: "Untitled"
+        val name = doc.name ?: uri.lastPathSegment ?: "Untitled"
         val mime = doc.type
         val language = LanguageDetector.detect(name, mime)
         val content = runCatching { FileUtils.readText(appContext, uri) }.getOrElse {
@@ -75,20 +98,29 @@ class FileRepository(private val appContext: Context) {
             // the error toast instead of a blank screen.
             ""
         }
+        val size = if (doc.isDirectory) 0L else doc.length()
+        val readOnly = size > MAX_INLINE_BYTES
         val tab = EditorTab(
             uri = uri,
             name = name,
             language = language,
             content = content,
             originalContent = content,
-            readOnly = false,
+            readOnly = readOnly,
         )
         _tabs.update { it + tab }
         _activeTabId.value = tab.id
         tab
     }
 
-    suspend fun openExternalFile(uri: Uri): EditorTab? = openFile(uri)
+    suspend fun openExternalFile(uri: Uri): EditorTab? {
+        // External URIs (content://) are opened directly via the same
+        // path as local files. SAF grants a transient read permission
+        // that the caller (MainActivity) has already attached to the
+        // intent — we don't need to copy the file into the local
+        // workspace to display it.
+        return openFile(uri)
+    }
 
     suspend fun saveTab(tabId: String): Boolean = withContext(Dispatchers.IO) {
         val tab = _tabs.value.firstOrNull { it.id == tabId } ?: return@withContext false
@@ -99,6 +131,13 @@ class FileRepository(private val appContext: Context) {
             }
             true
         }.getOrElse { false }
+    }
+
+    /** Auto-save hook — only writes if the tab is dirty. */
+    suspend fun saveTabIfDirty(tabId: String): Boolean {
+        val tab = _tabs.value.firstOrNull { it.id == tabId } ?: return false
+        if (!tab.isDirty) return true
+        return saveTab(tabId)
     }
 
     fun updateTabContent(tabId: String, newContent: String) {
@@ -139,6 +178,12 @@ class FileRepository(private val appContext: Context) {
         val ok = FileUtils.rename(appContext, uri, newName)
         val parent = _tree.value.entries.firstOrNull { (_, kids) -> kids.any { it.uri == uri } }?.key
         if (parent != null) refreshDirectory(parent)
+        // Also rename the tab if it is open so the title bar updates.
+        if (ok) {
+            _tabs.update { tabs ->
+                tabs.map { if (it.uri == uri) it.copy(name = newName) else it }
+            }
+        }
         ok
     }
 
@@ -146,10 +191,25 @@ class FileRepository(private val appContext: Context) {
         val ok = FileUtils.delete(appContext, uri)
         val parent = _tree.value.entries.firstOrNull { (_, kids) -> kids.any { it.uri == uri } }?.key
         if (parent != null) refreshDirectory(parent)
+        // Close any open tab whose URI is below the deleted node.
+        if (ok) {
+            _tabs.update { tabs -> tabs.filterNot { it.uri == uri || it.uri.toString().startsWith(uri.toString() + "/") } }
+            if (_activeTabId.value?.let { id -> _tabs.value.none { it.id == id } } == true) {
+                _activeTabId.value = _tabs.value.lastOrNull()?.id
+            }
+        }
         ok
     }
 
+    private fun displayNameForLocal(uri: Uri): String {
+        val path = uri.path ?: return "Workspace"
+        val f = File(path)
+        return f.name.ifBlank { "Workspace" }
+    }
+
     companion object {
+        private const val MAX_INLINE_BYTES = 5L * 1024 * 1024 // 5 MB
+
         @Volatile private var instance: FileRepository? = null
         fun get(context: Context): FileRepository = instance ?: synchronized(this) {
             instance ?: FileRepository(context.applicationContext).also { instance = it }

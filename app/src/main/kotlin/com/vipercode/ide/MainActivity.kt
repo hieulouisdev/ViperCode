@@ -28,6 +28,14 @@ import kotlinx.coroutines.delay
  * - Hands control to a Compose [ViperNavHost] that owns the back stack.
  * - Forwards `VIEW` intents (file open from outside the app) into the
  *   navigation graph so a tapped file opens directly in the editor.
+ *
+ * v0.0.2 fixes a startup crash: in v0.0.1, accessing
+ * [SettingsRepository] before [ViperCodeApp.onCreate] had a chance to
+ * call [SettingsRepository.init] would throw
+ * `UninitializedPropertyAccessException` because the Pref Flows were
+ * built eagerly against a `lateinit` context. The repository now
+ * resolves the context lazily, so this class can safely read settings
+ * at first composition.
  */
 class MainActivity : ComponentActivity() {
 
@@ -60,7 +68,7 @@ class MainActivity : ComponentActivity() {
                         )
                     }
                     // If another ACTION_VIEW arrives while the activity is alive
-                    // (launchMode defaults to singleTop, so onNewIntent fires).
+                    // (singleTop launchMode → onNewIntent fires).
                     LaunchedEffect(Unit) {
                         pendingExternalUri?.let { externalUri = it; pendingExternalUri = null }
                     }

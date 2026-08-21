@@ -50,12 +50,15 @@ fun ViperCodeTheme(
     val view = LocalView.current
     if (!view.isInEditMode) {
         SideEffect {
-            val window = (view.context as Activity).window
-            window.statusBarColor = colorScheme.background.toArgb()
-            window.navigationBarColor = colorScheme.background.toArgb()
-            WindowCompat.getInsetsController(window, view).apply {
-                isAppearanceLightStatusBars = !isDark
-                isAppearanceLightNavigationBars = !isDark
+            val activity = view.context.findActivity()
+            if (activity != null) {
+                val window = activity.window
+                window.statusBarColor = colorScheme.background.toArgb()
+                window.navigationBarColor = colorScheme.background.toArgb()
+                WindowCompat.getInsetsController(window, view).apply {
+                    isAppearanceLightStatusBars = !isDark
+                    isAppearanceLightNavigationBars = !isDark
+                }
             }
         }
     }
@@ -66,4 +69,19 @@ fun ViperCodeTheme(
         shapes = ViperShapes,
         content = content,
     )
+}
+
+/**
+ * Unwraps a Context chain (ContextThemeWrapper → Activity) so we can
+ * safely fetch the host window without a fragile `as Activity` cast
+ * that crashes if the Compose hierarchy is hosted inside a non-Activity
+ * context (e.g., preview surfaces or embedded views).
+ */
+private fun android.content.Context.findActivity(): Activity? {
+    var ctx: android.content.Context? = this
+    while (ctx is android.content.ContextWrapper) {
+        if (ctx is Activity) return ctx
+        ctx = ctx.baseContext
+    }
+    return ctx as? Activity
 }

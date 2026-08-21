@@ -15,3 +15,19 @@
 # Keep ViperCode app entry points
 -keep class com.vipercode.ide.MainActivity { *; }
 -keep class com.vipercode.ide.ViperCodeApp { *; }
+
+# Keep BuildConfig fields referenced from Compose (version display, etc.)
+-keep class com.vipercode.ide.BuildConfig { *; }
+
+# Keep data classes used as Compose state
+-keep class com.vipercode.ide.data.model.** { *; }
+
+# Keep SettingsRepository.Pref subclasses (reflection-free, but used in singleton init)
+-keep class com.vipercode.ide.data.prefs.** { *; }
+
+# DocumentFile is referenced via reflection by AndroidX
+-keep class androidx.documentfile.provider.** { *; }
+
+# DataStore — keep internal serialization
+-keep class androidx.datastore.** { *; }
+

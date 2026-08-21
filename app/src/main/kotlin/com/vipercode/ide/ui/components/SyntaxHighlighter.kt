@@ -190,7 +190,6 @@ object SyntaxHighlighter {
             "sealed", "super", "this", "throw", "trait", "try", "true", "type", "val", "var",
             "while", "with", "yield", "given", "using", "enum", "export", "then",
         ),
-        Language.JAVA to setOf(), // placeholder to keep map shape stable
     )
 
     /** Tokenize and apply colour spans. */

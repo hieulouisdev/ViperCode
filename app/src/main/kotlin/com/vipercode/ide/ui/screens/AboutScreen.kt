@@ -113,7 +113,7 @@ fun AboutScreen(onBack: () -> Unit) {
                     ),
                 )
                 HorizontalDivider()
-                InfoLine("Version", "v0.0.1 (release)")
+                InfoLine("Version", "v" + BuildConfig.VERSION_NAME + " (release)")
                 InfoLine("Build", BuildConfig.VERSION_CODE.toString())
                 InfoLine("Developer", "hieulouisdev")
                 InfoLine("License", "MIT")

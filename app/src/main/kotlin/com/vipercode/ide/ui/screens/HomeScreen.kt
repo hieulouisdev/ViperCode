@@ -8,10 +8,10 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CreateNewFolder
+import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.MoreVert
@@ -42,7 +42,6 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.PopupProperties
 import com.vipercode.ide.data.model.FileNode
 import com.vipercode.ide.data.prefs.SettingsRepository
@@ -54,13 +53,15 @@ import kotlinx.coroutines.launch
 /**
  * Home / Workspace screen.
  *
- * Shows the open folder's file tree. If no folder is open yet, shows a
- * CTA that launches the Storage Access Framework folder picker. The
- * picked folder URI is persisted in [SettingsRepository.lastFolderUri]
- * so the user's previous session is restored on next launch.
+ * Shows the open folder's file tree. If no folder is open yet:
+ *  - v0.0.2: automatically opens a default local workspace under the
+ *    app's external storage (`getExternalFilesDir/workspace`) so the
+ *    app is immediately usable offline. The user can still switch to a
+ *    SAF-picked folder via the overflow menu.
  *
- * v0.0.1 keeps the surface intentionally minimal: open folder, new file,
- * new folder, refresh, and overflow (settings, about).
+ * The picked folder URI (or local workspace path) is persisted in
+ * [SettingsRepository.lastFolderUri] so the same workspace is restored
+ * on next launch.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -75,34 +76,44 @@ fun HomeScreen(
     val openFolder by repo.openFolder.collectAsState()
     val tree by repo.tree.collectAsState()
 
-    // Track which directories are expanded.
     var expanded by remember { mutableStateOf<Set<Uri>>(emptySet()) }
+    var menuOpen by remember { mutableStateOf(false) }
+    var newFileDialog by remember { mutableStateOf(false) }
+    var newFolderDialog by remember { mutableStateOf(false) }
+    var longPressTarget by remember { mutableStateOf<FileNode?>(null) }
 
-    // Last opened folder is restored on first composition.
+    // Restore the previous folder OR fall back to the local workspace.
     LaunchedEffect(Unit) {
+        if (openFolder != null) return@LaunchedEffect
         val saved = SettingsRepository.lastFolderUri.now()
-        if (saved.isNotBlank() && openFolder == null) {
-            runCatching {
-                // Re-grant permission (already persisted by Android).
-                context.contentResolver.takePersistableUriPermission(
-                    Uri.parse(saved),
-                    Intent.FLAG_GRANT_READ_URI_PERMISSION
-                )
-                repo.openFolder(Uri.parse(saved))
-                expanded = expanded + Uri.parse(saved)
-            }
+        if (saved.isNotBlank()) {
+            val restored = runCatching {
+                val uri = Uri.parse(saved)
+                if (uri.toString().startsWith("file://") ||
+                    FileUtils.isLocalWorkspaceUri(uri)
+                ) {
+                    repo.openFolder(uri)
+                    expanded = expanded + uri
+                    true
+                } else {
+                    // SAF URI — re-grant the persistable permission.
+                    runCatching {
+                        context.contentResolver.takePersistableUriPermission(
+                            uri,
+                            Intent.FLAG_GRANT_READ_URI_PERMISSION,
+                        )
+                    }
+                    repo.openFolder(uri)
+                    expanded = expanded + uri
+                    true
+                }
+            }.getOrDefault(false)
+            if (restored) return@LaunchedEffect
         }
-    }
-
-    val folderPicker = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.OpenDocumentTree(),
-    ) { uri: Uri? ->
-        if (uri != null) {
-            // Persist permission so we can re-open after restart.
-            context.contentResolver.takePersistableUriPermission(
-                uri,
-                Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION,
-            )
+        // Fall back to the local offline workspace.
+        if (SettingsRepository.useLocalWorkspace.now()) {
+            val local = FileUtils.localWorkspaceRoot(context)
+            val uri = Uri.fromFile(local)
             scope.launch {
                 SettingsRepository.lastFolderUri.set(uri.toString())
                 repo.openFolder(uri)
@@ -111,10 +122,23 @@ fun HomeScreen(
         }
     }
 
-    var menuOpen by remember { mutableStateOf(false) }
-    var newFileDialog by remember { mutableStateOf(false) }
-    var newFolderDialog by remember { mutableStateOf(false) }
-    var longPressTarget by remember { mutableStateOf<FileNode?>(null) }
+    val folderPicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocumentTree(),
+    ) { uri: Uri? ->
+        if (uri != null) {
+            runCatching {
+                context.contentResolver.takePersistableUriPermission(
+                    uri,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION,
+                )
+            }
+            scope.launch {
+                SettingsRepository.lastFolderUri.set(uri.toString())
+                repo.openFolder(uri)
+                expanded = expanded + uri
+            }
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -160,12 +184,26 @@ fun HomeScreen(
                         )
                         HorizontalDivider()
                         DropdownMenuItem(
-                            text = { Text("Open folder") },
+                            text = { Text("Open folder (SAF)") },
                             onClick = {
                                 menuOpen = false
                                 folderPicker.launch(null)
                             },
                             leadingIcon = { Icon(Icons.Filled.FolderOpen, null) },
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Use local workspace") },
+                            onClick = {
+                                menuOpen = false
+                                val local = FileUtils.localWorkspaceRoot(context)
+                                val uri = Uri.fromFile(local)
+                                scope.launch {
+                                    SettingsRepository.lastFolderUri.set(uri.toString())
+                                    repo.openFolder(uri)
+                                    expanded = expanded + uri
+                                }
+                            },
+                            leadingIcon = { Icon(Icons.Filled.Folder, null) },
                         )
                     }
                 },
@@ -177,8 +215,16 @@ fun HomeScreen(
         },
         floatingActionButton = {
             if (openFolder != null) {
-                FloatingActionButton(onClick = { newFileDialog = true }) {
-                    Icon(Icons.Filled.Add, contentDescription = "New file")
+                Column {
+                    FloatingActionButton(
+                        onClick = { newFolderDialog = true },
+                        modifier = Modifier.padding(bottom = 8.dp),
+                    ) {
+                        Icon(Icons.Filled.CreateNewFolder, contentDescription = "New folder")
+                    }
+                    FloatingActionButton(onClick = { newFileDialog = true }) {
+                        Icon(Icons.Filled.Add, contentDescription = "New file")
+                    }
                 }
             } else {
                 FloatingActionButton(onClick = { folderPicker.launch(null) }) {

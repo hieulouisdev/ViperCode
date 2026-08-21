@@ -11,6 +11,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -30,6 +31,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.vipercode.ide.data.prefs.SettingsRepository
 import com.vipercode.ide.data.prefs.SettingsRepository.ThemeMode
+import com.vipercode.ide.data.prefs.SettingsRepository.FontFamily
 import kotlinx.coroutines.launch
 
 /**
@@ -38,6 +40,11 @@ import kotlinx.coroutines.launch
  * Drives every preference via [SettingsRepository]'s suspend setters so
  * updates are immediately persisted to DataStore and propagated to the
  * rest of the UI through the StateFlow exposed by each [Pref].
+ *
+ * v0.0.2 adds:
+ *  - Auto-save toggle + delay slider
+ *  - Font family picker (system / JetBrains Mono / Fira Code)
+ *  - Default-local-workspace toggle (offline-first)
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -50,8 +57,11 @@ fun SettingsScreen(onBack: () -> Unit) {
     val tabSize by SettingsRepository.tabSize.flow.collectAsState(initial = 4)
     val wordWrap by SettingsRepository.wordWrap.flow.collectAsState(initial = false)
     val lineNumbers by SettingsRepository.lineNumbers.flow.collectAsState(initial = true)
-    val autoSave by SettingsRepository.autoSave.flow.collectAsState(initial = false)
+    val autoSave by SettingsRepository.autoSave.flow.collectAsState(initial = true)
+    val autoSaveDelayMs by SettingsRepository.autoSaveDelayMs.flow.collectAsState(initial = 1500)
     val autoIndent by SettingsRepository.autoIndent.flow.collectAsState(initial = true)
+    val fontFamily by SettingsRepository.fontFamily.flow.collectAsState(initial = FontFamily.SYSTEM)
+    val useLocalWorkspace by SettingsRepository.useLocalWorkspace.flow.collectAsState(initial = true)
 
     Scaffold(
         topBar = {
@@ -86,6 +96,9 @@ fun SettingsScreen(onBack: () -> Unit) {
                 checked = dynamicColor,
                 onChange = { v -> scope.launch { SettingsRepository.dynamicColor.set(v) } },
             )
+            FontFamilySelector(fontFamily) { ff ->
+                scope.launch { SettingsRepository.fontFamily.set(ff) }
+            }
 
             HorizontalDivider()
             SectionHeader("Editor")
@@ -123,11 +136,31 @@ fun SettingsScreen(onBack: () -> Unit) {
                 checked = autoIndent,
                 onChange = { v -> scope.launch { SettingsRepository.autoIndent.set(v) } },
             )
+
+            HorizontalDivider()
+            SectionHeader("Auto-save")
             ToggleRow(
                 title = "Auto save",
-                subtitle = "Save changes on idle (coming in v0.0.2)",
+                subtitle = "Save dirty files after a short idle delay",
                 checked = autoSave,
                 onChange = { v -> scope.launch { SettingsRepository.autoSave.set(v) } },
+            )
+            SliderRow(
+                title = "Auto-save delay",
+                valueLabel = "${autoSaveDelayMs} ms",
+                value = autoSaveDelayMs.toFloat(),
+                range = 500f..5000f,
+                steps = 8,
+                onChange = { v -> scope.launch { SettingsRepository.autoSaveDelayMs.set(v.toInt()) } },
+            )
+
+            HorizontalDivider()
+            SectionHeader("Storage (offline)")
+            ToggleRow(
+                title = "Use local workspace",
+                subtitle = "Create a default offline workspace inside the app's private storage so ViperCode works without picking a folder",
+                checked = useLocalWorkspace,
+                onChange = { v -> scope.launch { SettingsRepository.useLocalWorkspace.set(v) } },
             )
         }
     }
@@ -206,7 +239,7 @@ private fun ThemeSelector(current: ThemeMode, onChange: (ThemeMode) -> Unit) {
         ) {
             ThemeMode.entries.forEach { mode ->
                 val selected = mode == current
-                androidx.compose.material3.FilterChip(
+                FilterChip(
                     selected = selected,
                     onClick = { onChange(mode) },
                     label = {
@@ -218,6 +251,25 @@ private fun ThemeSelector(current: ThemeMode, onChange: (ThemeMode) -> Unit) {
                             }
                         )
                     },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun FontFamilySelector(current: FontFamily, onChange: (FontFamily) -> Unit) {
+    Column(modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp)) {
+        Text("Editor font family", style = MaterialTheme.typography.bodyLarge)
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            FontFamily.entries.forEach { ff ->
+                FilterChip(
+                    selected = ff == current,
+                    onClick = { onChange(ff) },
+                    label = { Text(ff.displayName) },
                 )
             }
         }

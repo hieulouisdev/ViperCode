@@ -24,7 +24,8 @@ import kotlinx.coroutines.runBlocking
  */
 object SettingsRepository {
 
-    private lateinit var ctx: Context
+    @Volatile
+    private var ctx: Context? = null
 
     private val Context.dataStore by preferencesDataStore(name = "vipercode_settings")
 
@@ -41,14 +42,19 @@ object SettingsRepository {
     val tabSize = Pref(Int::class.javaObjectType, "tab_size", 4)
     val wordWrap = Pref(Boolean::class.javaObjectType, "word_wrap", false)
     val lineNumbers = Pref(Boolean::class.javaObjectType, "line_numbers", true)
-    val autoSave = Pref(Boolean::class.javaObjectType, "auto_save", false)
+    val autoSave = Pref(Boolean::class.javaObjectType, "auto_save", true)
+    val autoSaveDelayMs = Pref(Int::class.javaObjectType, "auto_save_delay_ms", 1500)
     val autoIndent = Pref(Boolean::class.javaObjectType, "auto_indent", true)
     val fontFamily = Pref(FontFamily::class.java, "font_family", FontFamily.SYSTEM)
     val lastFolderUri = Pref(String::class.java, "last_folder_uri", "")
+    val useLocalWorkspace = Pref(Boolean::class.javaObjectType, "use_local_workspace", true)
 
     fun init(context: Context) {
         ctx = context.applicationContext
     }
+
+    private fun appContext(): Context =
+        ctx ?: error("SettingsRepository not initialised. Call init(context) first.")
 
     private fun <T> keyOf(name: String, type: Class<T>): Preferences.Key<*> = when {
         type == Int::class.javaObjectType -> intPreferencesKey(name)
@@ -77,26 +83,34 @@ object SettingsRepository {
      * A typed preference wrapper. Exposes both a [flow] (for Compose) and
      * a blocking [now] accessor (for one-shot reads on background threads).
      *
-     * Implemented as a non-inner class — it references the singleton's
-     * private [ctx] field directly so it does not need a parent instance.
+     * IMPORTANT: [flow] and [key] are lazy. The DataStore is only resolved
+     * on first collection / first key lookup, which guarantees the
+     * singleton's [ctx] is already set by the time the JVM needs it.
+     *
+     * (v0.0.1 had [ctx] as `lateinit var` and eagerly built the Flow at
+     * Pref-construction time — which ran before [init] could assign [ctx]
+     * and crashed the app with UninitializedPropertyAccessException on
+     * every launch.)
      */
     class Pref<T : Any>(
         private val type: Class<T>,
         private val name: String,
         private val default: T,
     ) {
-        private val key: Preferences.Key<*> by lazy { keyOf(name, type) }
+        val key: Preferences.Key<*> by lazy { keyOf(name, type) }
 
-        val flow: Flow<T> = ctx.dataStore.data.map { prefs ->
-            @Suppress("UNCHECKED_CAST")
-            val raw = prefs[key as Preferences.Key<Any>] as Any?
-            decode(raw, type, default)
+        val flow: Flow<T> by lazy {
+            appContext().dataStore.data.map { prefs ->
+                @Suppress("UNCHECKED_CAST")
+                val raw = prefs[key as Preferences.Key<Any>] as Any?
+                decode(raw, type, default)
+            }
         }
 
         fun now(): T = runBlocking { flow.first() }
 
         suspend fun set(value: T) {
-            ctx.dataStore.edit { prefs ->
+            appContext().dataStore.edit { prefs ->
                 @Suppress("UNCHECKED_CAST")
                 prefs[key as Preferences.Key<Any>] = encode(value) as Any
             }

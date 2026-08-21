@@ -32,6 +32,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.vipercode.ide.BuildConfig
 import com.vipercode.ide.R
 import com.vipercode.ide.ui.theme.ViperAccent
 import com.vipercode.ide.ui.theme.ViperDark
@@ -112,7 +113,7 @@ fun SplashScreen(onContinue: () -> Unit) {
             Spacer(Modifier.height(24.dp))
             AnimatedVisibility(visible = visible, enter = fadeIn(), exit = fadeOut()) {
                 Text(
-                    text = "v0.0.1",
+                    text = "v" + BuildConfig.VERSION_NAME,
                     color = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.4f),
                     fontSize = 11.sp,
                     fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
