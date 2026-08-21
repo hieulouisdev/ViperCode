@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -24,20 +23,18 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.vipercode.ide.BuildConfig
@@ -45,20 +42,25 @@ import com.vipercode.ide.R
 import com.vipercode.ide.ui.theme.ViperAccent
 import com.vipercode.ide.ui.theme.ViperDark
 import com.vipercode.ide.ui.theme.ViperOnDark
+import com.vipercode.ide.util.Strings
 
 /**
  * About screen — brand surface, version, tagline, tech stack, license.
  *
- * Top half renders the navy brand gradient with the logo centered;
- * bottom half scrolls vertically with the textual info.
+ * v0.0.4: every visible string flows through [Strings.get] so the
+ * About screen honours the user's interface language. The version
+ * number is taken from BuildConfig so it always reflects the actual
+ * shipped build (was hardcoded in v0.0.2).
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AboutScreen(onBack: () -> Unit) {
+    val activeLanguage by Strings.active.collectAsState()
+    val s = Strings.get()
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("About") },
+                title = { Text(s.aboutTitle) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
@@ -84,25 +86,30 @@ fun AboutScreen(onBack: () -> Unit) {
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
                 Text(
-                    text = "A modern, performant code editor for Android. Built for developers who demand the class of perfection in every keystroke.",
+                    text = s.aboutDescription,
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurface,
                 )
-                SectionTitle("Features")
+                SectionTitle(s.aboutFeatures)
                 BulletList(
                     items = listOf(
-                        "Multi-language syntax highlighting (30+ languages)",
-                        "Multi-tab editing with dirty-state tracking",
-                        "Storage Access Framework integration",
-                        "Material 3 dynamic theming (Android 12+)",
-                        "Optimised for Android 7.1.1+ (API 25)",
-                        "Word wrap, line numbers, auto-indent",
-                        "Find & Replace with regex + case toggle (v0.0.3)",
-                        "Live HTML/CSS/JS preview via WebView (v0.0.3)",
-                        "Cursor position persistence across tab switches (v0.0.3)",
+                        s.aboutFeature1,
+                        s.aboutFeature2,
+                        s.aboutFeature3,
+                        s.aboutFeature4,
+                        s.aboutFeature5,
+                        s.aboutFeature6,
+                        s.aboutFeature7,
+                        s.aboutFeature8,
+                        s.aboutFeature9,
+                        s.aboutFeature10,
+                        s.aboutFeature11,
+                        s.aboutFeature12,
+                        s.aboutFeature13,
+                        s.aboutFeature14,
                     ),
                 )
-                SectionTitle("Tech stack")
+                SectionTitle(s.aboutTechStack)
                 BulletList(
                     items = listOf(
                         "Kotlin 2.0.21",
@@ -117,11 +124,11 @@ fun AboutScreen(onBack: () -> Unit) {
                     ),
                 )
                 HorizontalDivider()
-                InfoLine("Version", "v" + BuildConfig.VERSION_NAME + " (" + BuildConfig.BUILD_TYPE + ")")
-                InfoLine("Build", BuildConfig.VERSION_CODE.toString())
-                InfoLine("Developer", "hieulouisdev")
-                InfoLine("License", "MIT")
-                InfoLine("Source", "github.com/hieulouisdev/ViperCode")
+                InfoLine(s.aboutVersion, "v" + BuildConfig.VERSION_NAME + " (" + BuildConfig.BUILD_TYPE + ")")
+                InfoLine(s.aboutBuild, BuildConfig.VERSION_CODE.toString())
+                InfoLine(s.aboutDeveloper, "hieulouisdev")
+                InfoLine(s.aboutLicense, "MIT")
+                InfoLine(s.aboutSource, "github.com/hieulouisdev/ViperCode")
             }
         }
     }
@@ -129,6 +136,7 @@ fun AboutScreen(onBack: () -> Unit) {
 
 @Composable
 private fun BrandHero() {
+    val s = Strings.get()
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -153,14 +161,14 @@ private fun BrandHero() {
             )
             Spacer(Modifier.height(12.dp))
             Text(
-                text = "ViperCode",
+                text = s.appName,
                 color = ViperOnDark,
                 fontSize = 24.sp,
                 fontWeight = FontWeight.Bold,
             )
             Spacer(Modifier.height(4.dp))
             Text(
-                text = "The class of perfection",
+                text = s.tagline,
                 color = ViperAccent,
                 fontSize = 13.sp,
                 fontWeight = FontWeight.Medium,

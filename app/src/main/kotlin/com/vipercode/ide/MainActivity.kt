@@ -10,6 +10,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
@@ -17,6 +18,7 @@ import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import com.vipercode.ide.data.prefs.SettingsRepository
 import com.vipercode.ide.ui.navigation.ViperNavHost
 import com.vipercode.ide.ui.theme.ViperCodeTheme
+import com.vipercode.ide.util.Strings
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
@@ -40,6 +42,13 @@ import kotlinx.coroutines.flow.asStateFlow
  *  - Theme & dynamic-colour reads are no longer blocking the main thread
  *    — defaults are emitted immediately and the real preferences flow in
  *    asynchronously.
+ *
+ * v0.0.4:
+ *  - Observes the active [Strings.Language] so any change in
+ *    [SettingsRepository.LanguageMode] re-renders the entire UI without
+ *    restarting the Activity. The observed value flows down through
+ *    Compose's recomposition, so every screen reading [Strings.get]
+ *    picks up the new catalogue.
  */
 class MainActivity : ComponentActivity() {
 
@@ -62,6 +71,31 @@ class MainActivity : ComponentActivity() {
                 .collectAsState(initial = SettingsRepository.themeMode.default)
             val dynamicColor by SettingsRepository.dynamicColor.flow
                 .collectAsState(initial = SettingsRepository.dynamicColor.default)
+
+            // v0.0.4 — observe the saved language mode and propagate it
+            // to the in-memory Strings catalogue. Reading as state here
+            // also re-keys the composition, so every screen that reads
+            // Strings.get() recomposes when the language changes.
+            val languageMode by SettingsRepository.languageMode.flow
+                .collectAsState(initial = SettingsRepository.languageMode.default)
+            LaunchedEffect(languageMode) {
+                when (languageMode) {
+                    SettingsRepository.LanguageMode.SYSTEM -> {
+                        val lang = java.util.Locale.getDefault().language
+                        Strings.setLanguage(
+                            if (lang == "vi") Strings.Language.VIETNAMESE
+                            else Strings.Language.ENGLISH
+                        )
+                    }
+                    SettingsRepository.LanguageMode.ENGLISH ->
+                        Strings.setLanguage(Strings.Language.ENGLISH)
+                    SettingsRepository.LanguageMode.VIETNAMESE ->
+                        Strings.setLanguage(Strings.Language.VIETNAMESE)
+                }
+            }
+            // Subscribe to the Strings catalogue so the whole tree
+            // recomposes when the language flips.
+            val activeLanguage by Strings.active.collectAsState()
 
             ViperCodeTheme(
                 themeMode = themeMode,

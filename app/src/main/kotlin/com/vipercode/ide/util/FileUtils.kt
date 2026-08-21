@@ -160,12 +160,36 @@ object FileUtils {
      * Creates a new file inside [parentUri] with [name]. If a file with
      * the same name already exists, a numeric suffix is appended so the
      * call never overwrites existing data.
+     *
+     * v0.0.4 fix — extension duplication bug:
+     *  The previous implementation always passed a derived MIME type
+     *  (e.g. "text/html") to `DocumentFile.createFile(mime, displayName)`.
+     *  On many Android versions the ExternalStorageProvider:
+     *    1. strips the trailing extension that matches the MIME's
+     *       primary extension (if any), then
+     *    2. appends its own preferred extension derived from the MIME.
+     *  When the provider's preferred extension differs from the one the
+     *  user typed (e.g. user types ".html" but the provider maps
+     *  "text/html" → ".htm"), the result is "hieu.html.htm".
+     *  The same bug produces "gg.css.css" when the provider recognises
+     *  "text/css" but still re-appends ".css" because the strip step
+     *  looks for ".htm" (the wrong extension).
+     *
+     *  Fix: when the user already supplied an extension, pass MIME type
+     *  "application/octet-stream" so SAF leaves the file name untouched.
+     *  We only fall back to a derived MIME type when the user did NOT
+     *  supply an extension (e.g. creating "README" → "README.txt").
      */
     suspend fun createFile(context: Context, parentUri: Uri, name: String): FileNode? {
         return try {
             val parent = resolve(context, parentUri) ?: return null
             val finalName = uniqueName(parent, name)
-            val mime = mimeFromName(name)
+            // If the user supplied an extension, ask SAF NOT to alter the
+            // name by passing a generic MIME type. Otherwise derive a
+            // sensible MIME from the (extension-less) name.
+            val dotIdx = finalName.lastIndexOf('.')
+            val hasExtension = dotIdx > 0 && dotIdx < finalName.length - 1
+            val mime = if (hasExtension) "application/octet-stream" else mimeFromName(finalName)
             val created = parent.createFile(mime, finalName) ?: return null
             created.toFileNode(parent = parentUri)
         } catch (e: Throwable) {
@@ -203,6 +227,149 @@ object FileUtils {
             false
         }
     }
+
+    /**
+     * Creates a copy of [srcUri] inside [parentUri] with the same name
+     * (uniquified so it never overwrites). Recursively copies directories.
+     *
+     * v0.0.4.
+     */
+    suspend fun duplicate(context: Context, srcUri: Uri, parentUri: Uri): FileNode? {
+        return try {
+            val src = resolve(context, srcUri) ?: return null
+            val parent = resolve(context, parentUri) ?: return null
+            val baseName = src.name ?: "copy"
+            val copyName = uniqueName(parent, baseName, isDir = src.isDirectory)
+            val mime = if (src.isDirectory) null
+            else {
+                val dotIdx = copyName.lastIndexOf('.')
+                val hasExt = dotIdx > 0 && dotIdx < copyName.length - 1
+                if (hasExt) "application/octet-stream" else (src.type ?: "application/octet-stream")
+            }
+            val newDoc = if (src.isDirectory) parent.createDirectory(copyName)
+            else parent.createFile(mime ?: "application/octet-stream", copyName)
+                ?: return null
+            if (src.isDirectory) copyTree(context, src, newDoc)
+            else copyFileContents(context, src, newDoc)
+            newDoc.toFileNode(parent = parentUri)
+        } catch (e: Throwable) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
+            null
+        }
+    }
+
+    private suspend fun copyTree(context: Context, src: DocumentFile, dst: DocumentFile) {
+        for (child in src.listFiles()) {
+            val childName = child.name ?: continue
+            val target = if (child.isDirectory) {
+                dst.createDirectory(childName)
+            } else {
+                val dotIdx = childName.lastIndexOf('.')
+                val hasExt = dotIdx > 0 && dotIdx < childName.length - 1
+                val mime = if (hasExt) "application/octet-stream" else (child.type ?: "application/octet-stream")
+                dst.createFile(mime, childName)
+            } ?: continue
+            if (child.isDirectory) copyTree(context, child, target)
+            else copyFileContents(context, child, target)
+        }
+    }
+
+    private suspend fun copyFileContents(context: Context, src: DocumentFile, dst: DocumentFile) {
+        try {
+            val input = context.contentResolver.openInputStream(src.uri) ?: return
+            val output = context.contentResolver.openOutputStream(dst.uri, "wt") ?: return
+            input.use { i ->
+                output.use { o ->
+                    val buf = ByteArray(64 * 1024)
+                    while (true) {
+                        val r = i.read(buf)
+                        if (r <= 0) break
+                        o.write(buf, 0, r)
+                    }
+                }
+            }
+        } catch (_: Throwable) {
+            // Best-effort copy — ignore failures on individual files.
+        }
+    }
+
+    /**
+     * Recursively walks [rootUri] and yields every file whose name or
+     * content matches [query]. Used by the v0.0.4 "Search in files"
+     * feature. The walk is breadth-first so shallow matches show first.
+     *
+     * The query is matched case-insensitively against both file names
+     * and file contents. Files larger than [MAX_FILE_BYTES] are skipped
+     * for content search to avoid OOM on huge binaries.
+     *
+     * Returns at most [limit] results so a huge workspace doesn't
+     * starve the IO dispatcher.
+     */
+    suspend fun searchInFiles(
+        context: Context,
+        rootUri: Uri,
+        query: String,
+        limit: Int = 200,
+    ): List<SearchHit> = withContext(Dispatchers.IO) {
+        if (query.isBlank()) return@withContext emptyList()
+        val q = query.trim()
+        val qLower = q.lowercase()
+        val results = mutableListOf<SearchHit>()
+        val queue = ArrayDeque<Uri>()
+        queue.addLast(rootUri)
+        val visited = HashSet<Uri>()
+        while (queue.isNotEmpty() && results.size < limit) {
+            val current = queue.removeFirst()
+            if (!visited.add(current)) continue
+            val dir = resolve(context, current) ?: continue
+            if (!dir.isDirectory) continue
+            for (child in dir.listFiles()) {
+                if (results.size >= limit) break
+                val name = child.name ?: continue
+                if (child.isDirectory) {
+                    queue.addLast(child.uri)
+                    continue
+                }
+                // Match by name first (cheap).
+                if (name.contains(q, ignoreCase = true)) {
+                    results.add(SearchHit(child.uri, name, 0, 0, matchedInName = true))
+                    continue
+                }
+                // Skip files that are too large.
+                val len = child.length()
+                if (len <= 0 || len > MAX_FILE_BYTES) continue
+                // Match by content (expensive).
+                val text = runCatching { readText(context, child.uri) }.getOrNull() ?: continue
+                val idx = text.lowercase().indexOf(qLower)
+                if (idx >= 0) {
+                    val (line, col) = lineColForOffset(text, idx)
+                    results.add(SearchHit(child.uri, name, line, col, matchedInName = false))
+                }
+            }
+        }
+        results
+    }
+
+    private fun lineColForOffset(text: String, offset: Int): Pair<Int, Int> {
+        var line = 1
+        var col = 1
+        var i = 0
+        val end = offset.coerceAtMost(text.length)
+        while (i < end) {
+            if (text[i] == '\n') { line++; col = 1 } else col++
+            i++
+        }
+        return line to col
+    }
+
+    /** A single search hit — used by [searchInFiles]. */
+    data class SearchHit(
+        val uri: Uri,
+        val fileName: String,
+        val line: Int,
+        val column: Int,
+        val matchedInName: Boolean,
+    )
 
     private fun uniqueName(parent: DocumentFile, name: String, isDir: Boolean = false): String {
         if (parent.findFile(name) == null) return name

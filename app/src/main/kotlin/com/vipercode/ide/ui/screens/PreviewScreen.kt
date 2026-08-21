@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -42,9 +43,12 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import com.vipercode.ide.data.prefs.SettingsRepository
 import com.vipercode.ide.data.repo.FileRepository
 import com.vipercode.ide.util.Language
+import com.vipercode.ide.util.Strings
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 /**
  * Live HTML/CSS/JS preview screen.
@@ -55,9 +59,23 @@ import kotlinx.coroutines.delay
  * rendered document so a small multi-file project "just works"
  * without any server or file:// routing.
  *
- * Auto-refresh: a debounce fires 600 ms after the user stops typing
- * in the source HTML tab, reloading the WebView with the new content
- * so the user sees live updates without manual refresh.
+ * v0.0.4 fixes preview lag (the v0.0.3 complaint):
+ *  - **`composedHtml` no longer recomputes on every keystroke**. The
+ *    `remember` key is now `[refreshKey]` only — `activeTab.content`
+ *    was removed from the key so the regex-based asset inliner runs
+ *    once per refresh, not once per keystroke. v0.0.3 inlined CSS+JS
+ *    on every keystroke even though the WebView only reloaded after
+ *    the 600 ms debounce.
+ *  - **Debounce is configurable** via [SettingsRepository.previewDelayMs]
+ *    (default 800 ms, range 300–3000 ms in Settings).
+ *  - **Live refresh toggle** ([SettingsRepository.livePreview]) lets
+ *    the user disable auto-refresh entirely and rely on the manual
+ *    reload button — useful when iterating on a JavaScript-heavy page
+ *    whose state should not be reset on every save.
+ *  - **Update callback compares content** so a recomposition triggered
+ *    by an unrelated state change (e.g. tab focus) doesn't blow away
+ *    the WebView's state by calling `loadDataWithBaseURL` with the
+ *    same HTML.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -69,6 +87,17 @@ fun PreviewScreen(
     val repo = remember { FileRepository.get(context) }
     val tabs by repo.tabs.collectAsState()
     val activeId by repo.activeTabId.collectAsState()
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+
+    // Observe the Strings catalogue so the screen recomposes when the
+    // user flips the UI language mid-session.
+    val activeLanguage by Strings.active.collectAsState()
+    val s = Strings.get()
+
+    val livePreview by SettingsRepository.livePreview.flow
+        .collectAsState(initial = SettingsRepository.livePreview.default)
+    val previewDelayMs by SettingsRepository.previewDelayMs.flow
+        .collectAsState(initial = SettingsRepository.previewDelayMs.default)
 
     val activeTab = remember(tabs, activeId, tabId) {
         tabs.firstOrNull { it.id == (activeId ?: tabId) }
@@ -78,14 +107,23 @@ fun PreviewScreen(
     var webviewRef by remember { mutableStateOf<WebView?>(null) }
     var loadProgress by remember { mutableIntStateOf(0) }
     var refreshKey by remember { mutableIntStateOf(0) }
+    // Snapshot of the HTML rendered in the WebView. We only call
+    // loadDataWithBaseURL when this differs from the next snapshot.
+    var lastRenderedHtml by remember { mutableStateOf("") }
 
     // The composed HTML document (HTML + inlined CSS + inlined JS from
     // sibling tabs of the same workspace).
-    val composedHtml = remember(activeTab?.content, tabs, refreshKey) {
+    //
+    // KEY FIX (v0.0.4): keyed ONLY on `refreshKey` (and `tabs` so
+    // CSS/JS edits to a sibling tab are picked up after the next
+    // refresh tick). The previous `activeTab?.content` key caused
+    // this whole block — including the regex-based companion asset
+    // inliner — to run on every keystroke.
+    val composedHtml = remember(refreshKey, tabs, activeLanguage) {
         val html = activeTab?.content.orEmpty()
         if (html.isBlank()) {
             "<html><body style='font-family:sans-serif;padding:2em;color:#888'>" +
-                "<h2>Empty document</h2><p>Type some HTML in the editor to see the live preview.</p>" +
+                "<h2>${s.previewEmpty}</h2>" +
                 "</body></html>"
         } else {
             inlineCompanionAssets(html, tabs.map { it })
@@ -98,13 +136,13 @@ fun PreviewScreen(
                 title = {
                     Column {
                         Text(
-                            text = "Preview • ${activeTab?.name ?: "Untitled"}",
+                            text = "${s.previewTitle} • ${activeTab?.name ?: "Untitled"}",
                             style = MaterialTheme.typography.titleMedium,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                         )
                         Text(
-                            text = "Live HTML/CSS/JS",
+                            text = s.previewSubtitle,
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             fontFamily = FontFamily.Monospace,
@@ -114,12 +152,25 @@ fun PreviewScreen(
                 },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back to editor")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = s.previewBackToEditor)
                     }
                 },
                 actions = {
+                    IconButton(onClick = {
+                        // Toggle live preview on/off without leaving the screen.
+                        scope.launch {
+                            SettingsRepository.livePreview.set(!livePreview)
+                        }
+                    }) {
+                        Icon(
+                            imageVector = Icons.Filled.Bolt,
+                            contentDescription = s.previewLiveToggle,
+                            tint = if (livePreview) MaterialTheme.colorScheme.primary
+                            else MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                     IconButton(onClick = { refreshKey++ }) {
-                        Icon(Icons.Filled.Refresh, contentDescription = "Reload preview")
+                        Icon(Icons.Filled.Refresh, contentDescription = s.previewReload)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -161,31 +212,40 @@ fun PreviewScreen(
                             "UTF-8",
                             null,
                         )
+                        lastRenderedHtml = composedHtml
                     }
                 },
                 update = { webview ->
-                    // Reload the document whenever composedHtml changes.
-                    // The update callback fires on every recomposition
-                    // where the captured `composedHtml` value differs
-                    // from the previous one.
-                    webview.loadDataWithBaseURL(
-                        "about:blank",
-                        composedHtml,
-                        "text/html",
-                        "UTF-8",
-                        null,
-                    )
+                    // Only reload if the composed HTML actually changed
+                    // since the last load. Spurious recompositions (e.g.
+                    // an unrelated tab gaining focus) used to nuke the
+                    // WebView's DOM state on every recomposition.
+                    if (composedHtml != lastRenderedHtml) {
+                        webview.loadDataWithBaseURL(
+                            "about:blank",
+                            composedHtml,
+                            "text/html",
+                            "UTF-8",
+                            null,
+                        )
+                        lastRenderedHtml = composedHtml
+                    }
                 },
             )
         }
     }
 
-    // Auto-refresh debounce: re-render 600 ms after the user stops
-    // typing. We bump refreshKey so the AndroidView's `update`
-    // re-fires with the latest composedHtml.
-    LaunchedEffect(activeTab?.content, activeTab?.id) {
-        delay(600)
-        refreshKey++
+    // Auto-refresh debounce: re-render `previewDelayMs` ms after the
+    // user stops typing. Bumps `refreshKey` so the `composedHtml`
+    // snapshot above is recomputed AND the AndroidView's `update`
+    // callback re-fires with the new content.
+    //
+    // Only fires when [livePreview] is enabled.
+    if (livePreview) {
+        LaunchedEffect(activeTab?.content, activeTab?.id, livePreview, previewDelayMs) {
+            delay(previewDelayMs.toLong())
+            refreshKey++
+        }
     }
 }
 

@@ -36,6 +36,19 @@ object SettingsRepository {
         FIRA("Fira Code", "FiraCode"),
     }
 
+    /**
+     * Interface language preference (v0.0.4).
+     *
+     * - [SYSTEM] follows Android's locale (English fallback if Vietnamese
+     *   is not the system language).
+     * - [ENGLISH] forces English regardless of the system locale.
+     * - [VIETNAMESE] forces Vietnamese.
+     */
+    enum class LanguageMode { SYSTEM, ENGLISH, VIETNAMESE }
+
+    /** Sort order for the file explorer (v0.0.4). */
+    enum class SortBy { NAME, SIZE, MODIFIED }
+
     val themeMode = Pref(ThemeMode::class.java, "theme_mode", ThemeMode.SYSTEM)
     val dynamicColor = Pref(Boolean::class.javaObjectType, "dynamic_color", true)
     val fontSize = Pref(Int::class.javaObjectType, "font_size", 14)
@@ -48,6 +61,13 @@ object SettingsRepository {
     val fontFamily = Pref(FontFamily::class.java, "font_family", FontFamily.SYSTEM)
     val lastFolderUri = Pref(String::class.java, "last_folder_uri", "")
     val useLocalWorkspace = Pref(Boolean::class.javaObjectType, "use_local_workspace", true)
+
+    // v0.0.4 — new preferences.
+    val languageMode = Pref(LanguageMode::class.java, "language_mode", LanguageMode.SYSTEM)
+    val showHiddenFiles = Pref(Boolean::class.javaObjectType, "show_hidden_files", false)
+    val sortBy = Pref(SortBy::class.java, "sort_by", SortBy.NAME)
+    val livePreview = Pref(Boolean::class.javaObjectType, "live_preview_auto_refresh", true)
+    val previewDelayMs = Pref(Int::class.javaObjectType, "preview_delay_ms", 800)
 
     fun init(context: Context) {
         ctx = context.applicationContext

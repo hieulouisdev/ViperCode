@@ -206,6 +206,21 @@ class FileRepository(private val appContext: Context) {
             node
         }
 
+    /** v0.0.4 — duplicates a file or folder next to its original. */
+    suspend fun duplicate(uri: Uri): FileNode? = withContext(Dispatchers.IO) {
+        val parent = _tree.value.entries.firstOrNull { (_, kids) -> kids.any { it.uri == uri } }?.key
+            ?: return@withContext null
+        val node = FileUtils.duplicate(appContext, uri, parent) ?: return@withContext null
+        refreshDirectory(parent)
+        node
+    }
+
+    /** v0.0.4 — workspace-wide text search. */
+    suspend fun searchInFiles(rootUri: Uri, query: String): List<FileUtils.SearchHit> =
+        withContext(Dispatchers.IO) {
+            FileUtils.searchInFiles(appContext, rootUri, query)
+        }
+
     suspend fun rename(uri: Uri, newName: String): Boolean = withContext(Dispatchers.IO) {
         val ok = FileUtils.rename(appContext, uri, newName)
         val parent = _tree.value.entries.firstOrNull { (_, kids) -> kids.any { it.uri == uri } }?.key

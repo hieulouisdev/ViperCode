@@ -19,6 +19,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -36,22 +37,20 @@ import com.vipercode.ide.BuildConfig
 import com.vipercode.ide.R
 import com.vipercode.ide.ui.theme.ViperAccent
 import com.vipercode.ide.ui.theme.ViperDark
+import com.vipercode.ide.util.Strings
 import kotlinx.coroutines.delay
 
 /**
  * Branded splash screen shown after the system splash.
  *
- * The system splash (configured via the SplashScreen compat library)
- * displays the launcher icon briefly; this composable then takes over
- * to render the brand wordmark and tagline for ~1 second before the
- * app auto-advances to the workspace.
- *
- * The screen ignores the active MaterialTheme and always renders on
- * the ViperCode brand navy so the brand identity is consistent across
- * light/dark/system modes.
+ * v0.0.4: tagline + version are routed through [Strings.get] so the
+ * splash honours the user's language preference.
  */
 @Composable
 fun SplashScreen(onContinue: () -> Unit) {
+    val activeLanguage by Strings.active.collectAsState()
+    val s = Strings.get()
+
     LaunchedEffect(Unit) {
         delay(1100)
         onContinue()
@@ -94,7 +93,7 @@ fun SplashScreen(onContinue: () -> Unit) {
             )
             Spacer(Modifier.height(20.dp))
             Text(
-                text = "ViperCode",
+                text = s.appName,
                 color = androidx.compose.ui.graphics.Color.White,
                 fontSize = 32.sp,
                 fontWeight = FontWeight.Bold,
@@ -103,7 +102,7 @@ fun SplashScreen(onContinue: () -> Unit) {
             )
             Spacer(Modifier.height(8.dp))
             Text(
-                text = "The class of perfection",
+                text = s.tagline,
                 color = ViperAccent,
                 fontSize = 14.sp,
                 fontWeight = FontWeight.Medium,

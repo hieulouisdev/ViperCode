@@ -30,26 +30,37 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.vipercode.ide.data.prefs.SettingsRepository
-import com.vipercode.ide.data.prefs.SettingsRepository.ThemeMode
 import com.vipercode.ide.data.prefs.SettingsRepository.FontFamily
+import com.vipercode.ide.data.prefs.SettingsRepository.LanguageMode
+import com.vipercode.ide.data.prefs.SettingsRepository.SortBy
+import com.vipercode.ide.data.prefs.SettingsRepository.ThemeMode
+import com.vipercode.ide.util.Strings
 import kotlinx.coroutines.launch
 
 /**
  * Settings screen.
  *
- * Drives every preference via [SettingsRepository]'s suspend setters so
- * updates are immediately persisted to DataStore and propagated to the
- * rest of the UI through the StateFlow exposed by each [Pref].
+ * v0.0.4 additions:
+ *  - **Language selector** (English / Tiếng Việt). Flip is live — the
+ *    whole UI recomposes through [Strings.active] without an Activity
+ *    restart.
+ *  - **Show hidden files** toggle.
+ *  - **Sort files by** selector (Name / Size / Modified).
+ *  - **Live preview auto-refresh** toggle + delay slider.
  *
- * v0.0.2 adds:
- *  - Auto-save toggle + delay slider
- *  - Font family picker (system / JetBrains Mono / Fira Code)
- *  - Default-local-workspace toggle (offline-first)
+ * v0.0.2 — v0.0.3 features remain unchanged: theme, dynamic colour,
+ * font family, font size, tab size, word wrap, line numbers,
+ * auto-indent, auto-save + delay, local workspace toggle.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(onBack: () -> Unit) {
     val scope = rememberCoroutineScope()
+
+    // Subscribe to the Strings catalogue so the screen recomposes when
+    // the user flips the language.
+    val activeLanguage by Strings.active.collectAsState()
+    val s = Strings.get()
 
     val themeMode by SettingsRepository.themeMode.flow.collectAsState(initial = ThemeMode.SYSTEM)
     val dynamicColor by SettingsRepository.dynamicColor.flow.collectAsState(initial = true)
@@ -63,10 +74,17 @@ fun SettingsScreen(onBack: () -> Unit) {
     val fontFamily by SettingsRepository.fontFamily.flow.collectAsState(initial = FontFamily.SYSTEM)
     val useLocalWorkspace by SettingsRepository.useLocalWorkspace.flow.collectAsState(initial = true)
 
+    // v0.0.4 — new prefs.
+    val languageMode by SettingsRepository.languageMode.flow.collectAsState(initial = LanguageMode.SYSTEM)
+    val showHidden by SettingsRepository.showHiddenFiles.flow.collectAsState(initial = false)
+    val sortBy by SettingsRepository.sortBy.flow.collectAsState(initial = SortBy.NAME)
+    val livePreview by SettingsRepository.livePreview.flow.collectAsState(initial = true)
+    val previewDelayMs by SettingsRepository.previewDelayMs.flow.collectAsState(initial = 800)
+
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Settings") },
+                title = { Text(s.settingsTitle) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
@@ -86,24 +104,27 @@ fun SettingsScreen(onBack: () -> Unit) {
                 .padding(horizontal = 16.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            SectionHeader("Appearance")
-            ThemeSelector(themeMode) { mode ->
+            SectionHeader(s.settingsAppearance)
+            LanguageSelector(languageMode) { mode ->
+                scope.launch { SettingsRepository.languageMode.set(mode) }
+            }
+            ThemeSelector(themeMode, s) { mode ->
                 scope.launch { SettingsRepository.themeMode.set(mode) }
             }
             ToggleRow(
-                title = "Dynamic color (Android 12+)",
-                subtitle = "Use the system palette if available",
+                title = s.settingsDynamicColor,
+                subtitle = s.settingsDynamicColorDesc,
                 checked = dynamicColor,
                 onChange = { v -> scope.launch { SettingsRepository.dynamicColor.set(v) } },
             )
-            FontFamilySelector(fontFamily) { ff ->
+            FontFamilySelector(fontFamily, s) { ff ->
                 scope.launch { SettingsRepository.fontFamily.set(ff) }
             }
 
             HorizontalDivider()
-            SectionHeader("Editor")
+            SectionHeader(s.settingsEditor)
             SliderRow(
-                title = "Font size",
+                title = s.settingsFontSize,
                 valueLabel = "${fontSize} sp",
                 value = fontSize.toFloat(),
                 range = 10f..24f,
@@ -111,42 +132,42 @@ fun SettingsScreen(onBack: () -> Unit) {
                 onChange = { v -> scope.launch { SettingsRepository.fontSize.set(v.toInt()) } },
             )
             SliderRow(
-                title = "Tab size",
-                valueLabel = "$tabSize spaces",
+                title = s.settingsTabSize,
+                valueLabel = s.settingsTabSizeValue.format(tabSize),
                 value = tabSize.toFloat(),
                 range = 2f..8f,
                 steps = 5,
                 onChange = { v -> scope.launch { SettingsRepository.tabSize.set(v.toInt()) } },
             )
             ToggleRow(
-                title = "Word wrap",
-                subtitle = "Wrap long lines instead of horizontal scroll",
+                title = s.settingsWordWrap,
+                subtitle = s.settingsWordWrapDesc,
                 checked = wordWrap,
                 onChange = { v -> scope.launch { SettingsRepository.wordWrap.set(v) } },
             )
             ToggleRow(
-                title = "Show line numbers",
-                subtitle = "Display the gutter column on the left",
+                title = s.settingsLineNumbers,
+                subtitle = s.settingsLineNumbersDesc,
                 checked = lineNumbers,
                 onChange = { v -> scope.launch { SettingsRepository.lineNumbers.set(v) } },
             )
             ToggleRow(
-                title = "Auto indent",
-                subtitle = "Match the previous line's indentation",
+                title = s.settingsAutoIndent,
+                subtitle = s.settingsAutoIndentDesc,
                 checked = autoIndent,
                 onChange = { v -> scope.launch { SettingsRepository.autoIndent.set(v) } },
             )
 
             HorizontalDivider()
-            SectionHeader("Auto-save")
+            SectionHeader(s.settingsAutoSave)
             ToggleRow(
-                title = "Auto save",
-                subtitle = "Save dirty files after a short idle delay",
+                title = s.settingsAutoSave,
+                subtitle = s.settingsAutoSaveDesc,
                 checked = autoSave,
                 onChange = { v -> scope.launch { SettingsRepository.autoSave.set(v) } },
             )
             SliderRow(
-                title = "Auto-save delay",
+                title = s.settingsAutoSaveDelay,
                 valueLabel = "${autoSaveDelayMs} ms",
                 value = autoSaveDelayMs.toFloat(),
                 range = 500f..5000f,
@@ -155,12 +176,38 @@ fun SettingsScreen(onBack: () -> Unit) {
             )
 
             HorizontalDivider()
-            SectionHeader("Storage (offline)")
+            SectionHeader(s.settingsStorage)
             ToggleRow(
-                title = "Use local workspace",
-                subtitle = "Create a default offline workspace inside the app's private storage so ViperCode works without picking a folder",
+                title = s.settingsUseLocalWorkspace,
+                subtitle = s.settingsUseLocalWorkspaceDesc,
                 checked = useLocalWorkspace,
                 onChange = { v -> scope.launch { SettingsRepository.useLocalWorkspace.set(v) } },
+            )
+            ToggleRow(
+                title = s.settingsHiddenFiles,
+                subtitle = s.settingsHiddenFilesDesc,
+                checked = showHidden,
+                onChange = { v -> scope.launch { SettingsRepository.showHiddenFiles.set(v) } },
+            )
+            SortSelector(sortBy, s) { sb ->
+                scope.launch { SettingsRepository.sortBy.set(sb) }
+            }
+
+            HorizontalDivider()
+            SectionHeader(s.previewSubtitle)
+            ToggleRow(
+                title = s.previewLiveToggle,
+                subtitle = s.previewSubtitle,
+                checked = livePreview,
+                onChange = { v -> scope.launch { SettingsRepository.livePreview.set(v) } },
+            )
+            SliderRow(
+                title = s.settingsAutoSaveDelay,
+                valueLabel = "${previewDelayMs} ms",
+                value = previewDelayMs.toFloat(),
+                range = 300f..3000f,
+                steps = 8,
+                onChange = { v -> scope.launch { SettingsRepository.previewDelayMs.set(v.toInt()) } },
             )
         }
     }
@@ -230,24 +277,23 @@ private fun SliderRow(
 }
 
 @Composable
-private fun ThemeSelector(current: ThemeMode, onChange: (ThemeMode) -> Unit) {
+private fun ThemeSelector(current: ThemeMode, s: Strings.T, onChange: (ThemeMode) -> Unit) {
     Column(modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp)) {
-        Text("Theme", style = MaterialTheme.typography.bodyLarge)
+        Text(s.settingsTheme, style = MaterialTheme.typography.bodyLarge)
         Row(
             modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             ThemeMode.entries.forEach { mode ->
-                val selected = mode == current
                 FilterChip(
-                    selected = selected,
+                    selected = mode == current,
                     onClick = { onChange(mode) },
                     label = {
                         Text(
                             when (mode) {
-                                ThemeMode.SYSTEM -> "System"
-                                ThemeMode.DARK -> "Dark"
-                                ThemeMode.LIGHT -> "Light"
+                                ThemeMode.SYSTEM -> s.settingsThemeSystem
+                                ThemeMode.DARK -> s.settingsThemeDark
+                                ThemeMode.LIGHT -> s.settingsThemeLight
                             }
                         )
                     },
@@ -258,9 +304,68 @@ private fun ThemeSelector(current: ThemeMode, onChange: (ThemeMode) -> Unit) {
 }
 
 @Composable
-private fun FontFamilySelector(current: FontFamily, onChange: (FontFamily) -> Unit) {
+private fun LanguageSelector(current: LanguageMode, onChange: (LanguageMode) -> Unit) {
+    val s = Strings.get()
     Column(modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp)) {
-        Text("Editor font family", style = MaterialTheme.typography.bodyLarge)
+        Text(s.settingsLanguage, style = MaterialTheme.typography.bodyLarge)
+        Text(
+            s.settingsLanguageDesc,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            LanguageMode.entries.forEach { mode ->
+                FilterChip(
+                    selected = mode == current,
+                    onClick = { onChange(mode) },
+                    label = {
+                        Text(
+                            when (mode) {
+                                LanguageMode.SYSTEM -> s.settingsThemeSystem
+                                LanguageMode.ENGLISH -> Strings.Language.ENGLISH.displayName
+                                LanguageMode.VIETNAMESE -> Strings.Language.VIETNAMESE.nativeName
+                            }
+                        )
+                    },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun SortSelector(current: SortBy, s: Strings.T, onChange: (SortBy) -> Unit) {
+    Column(modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            SortBy.entries.forEach { sb ->
+                FilterChip(
+                    selected = sb == current,
+                    onClick = { onChange(sb) },
+                    label = {
+                        Text(
+                            when (sb) {
+                                SortBy.NAME -> s.commonSortByName
+                                SortBy.SIZE -> s.commonSortBySize
+                                SortBy.MODIFIED -> s.commonSortByModified
+                            }
+                        )
+                    },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun FontFamilySelector(current: FontFamily, s: Strings.T, onChange: (FontFamily) -> Unit) {
+    Column(modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp)) {
+        Text(s.settingsFontFamily, style = MaterialTheme.typography.bodyLarge)
         Row(
             modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),

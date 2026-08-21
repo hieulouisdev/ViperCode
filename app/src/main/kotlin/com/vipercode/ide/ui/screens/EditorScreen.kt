@@ -14,7 +14,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.AutoFixHigh
+import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Save
@@ -58,26 +60,22 @@ import com.vipercode.ide.data.repo.FileRepository
 import com.vipercode.ide.ui.components.CodeEditor
 import com.vipercode.ide.ui.components.TabBar
 import com.vipercode.ide.util.Language
+import com.vipercode.ide.util.Strings
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /**
  * Editor screen — wraps the multi-tab bar and a [CodeEditor] instance.
  *
- * v0.0.3 changes:
- *  - **Back button flushes auto-save**: v0.0.2 skipped both the
- *    unsaved-changes dialog AND the immediate save when autoSave was
- *    enabled, so content typed < 1.5 s before back was lost. We now
- *    always flush before navigating away.
- *  - **Search & Replace upgrade**: full dialog with regex toggle,
- *    case-sensitivity toggle, find-next / find-prev navigation,
- *    match count, and per-match replace (not just replace-all).
- *  - **Live preview button**: a "play" icon in the TopAppBar takes
- *    the user to [PreviewScreen] (only shown when the active tab is
- *    HTML — non-HTML files have nothing to preview).
- *  - **Cursor position persistence**: every edit forwards the caret
- *    (line, column) back to the repository so it survives tab switches
- *    and app kills.
+ * v0.0.4 changes:
+ *  - All UI strings routed through [Strings.get] (Vietnamese support).
+ *  - **Go to line**: a new top-bar action asks for a line number and
+ *    restores the caret there. Lives in [showGoToLine].
+ *  - **Quick open / Search in files**: top-bar shortcuts that hand
+ *    off to dedicated screens (the Editor route now accepts callbacks
+ *    `onOpenQuickOpen` and `onOpenSearchInFiles`).
+ *  - **Tab title shows the file path** in the subtitle for easier
+ *    orientation in big workspaces.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -85,12 +83,17 @@ fun EditorScreen(
     tabId: String,
     onBack: () -> Unit,
     onOpenPreview: (tabId: String) -> Unit,
+    onOpenQuickOpen: () -> Unit = {},
+    onOpenSearchInFiles: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val repo = remember { FileRepository.get(context) }
     val scope = rememberCoroutineScope()
     val tabs by repo.tabs.collectAsState()
     val activeId by repo.activeTabId.collectAsState()
+
+    val activeLanguage by Strings.active.collectAsState()
+    val s = Strings.get()
 
     val fontSize by SettingsRepository.fontSize.flow.collectAsState(initial = 14)
     val tabSize by SettingsRepository.tabSize.flow.collectAsState(initial = 4)
@@ -103,11 +106,16 @@ fun EditorScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     var showUnsaved by remember { mutableStateOf<String?>(null) }
     var showSearch by remember { mutableStateOf(false) }
+    var showGoToLine by remember { mutableStateOf(false) }
+    var pendingGoToLine by remember { mutableStateOf<Int?>(null) }
+    var jumpToken by remember { mutableIntStateOf(0) }
 
-    // Resolve the actual active tab — prefer the repo's activeTabId, fall
-    // back to the tabId from the route so the editor is never empty.
+    // Resolve the actual active tab — prefer the repo's activeTabId,
+    // fall back to the tabId from the route so the editor is never
+    // empty.
     val activeTab = tabs.firstOrNull { it.id == (activeId ?: tabId) }
     val isHtmlTab = activeTab?.language == Language.HTML
+    val isMarkdownTab = activeTab?.language == Language.MARKDOWN
 
     LaunchedEffect(tabs, activeId, tabId) {
         if (tabs.isEmpty()) return@LaunchedEffect
@@ -135,12 +143,12 @@ fun EditorScreen(
         delay(autoSaveDelayMs.toLong())
         val ok = repo.saveTabIfDirty(tab.id)
         if (ok) {
-            snackbarHostState.showSnackbar("Saved ${tab.name}")
+            snackbarHostState.showSnackbar("${s.editorSaved} ${tab.name}")
         }
     }
 
     // Back-button handler — flush auto-save before navigating away so
-    // no content typed < delay is lost (v0.0.2 had this bug).
+    // no content typed < delay is lost.
     fun handleBack() {
         val t = activeTab
         if (t == null) {
@@ -152,13 +160,11 @@ fun EditorScreen(
             return
         }
         if (autoSaveEnabled) {
-            // Flush then back — no unsaved-changes dialog needed.
             scope.launch {
                 repo.saveTabIfDirty(t.id)
                 onBack()
             }
         } else {
-            // Manual save mode — ask the user what to do.
             showUnsaved = t.id
         }
     }
@@ -170,7 +176,7 @@ fun EditorScreen(
                 title = {
                     Column {
                         Text(
-                            text = activeTab?.name ?: "Editor",
+                            text = activeTab?.name ?: s.editorEmpty,
                             style = MaterialTheme.typography.titleMedium,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
@@ -178,7 +184,7 @@ fun EditorScreen(
                         activeTab?.let { tab ->
                             Text(
                                 text = tab.language.displayName + " • ${tab.encoding}" +
-                                    if (tab.readOnly) " • read-only" else "",
+                                    if (tab.readOnly) " • ${s.editorReadOnly}" else "",
                                 style = MaterialTheme.typography.labelSmall,
                                 fontFamily = FontFamily.Monospace,
                                 fontSize = 11.sp,
@@ -189,27 +195,36 @@ fun EditorScreen(
                 },
                 navigationIcon = {
                     IconButton(onClick = { handleBack() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = s.editorBack)
                     }
                 },
                 actions = {
                     IconButton(onClick = { showSearch = !showSearch }) {
-                        Icon(Icons.Filled.Search, contentDescription = "Search")
+                        Icon(Icons.Filled.Search, contentDescription = s.editorSearch)
+                    }
+                    IconButton(onClick = { showGoToLine = true }) {
+                        Icon(Icons.AutoMirrored.Filled.MenuBook, contentDescription = s.editorGoToLine)
+                    }
+                    IconButton(onClick = onOpenQuickOpen) {
+                        Icon(Icons.Filled.Bolt, contentDescription = s.editorQuickOpen)
+                    }
+                    IconButton(onClick = onOpenSearchInFiles) {
+                        Icon(Icons.Filled.Search, contentDescription = s.editorSearchInFiles)
                     }
                     if (isHtmlTab && activeTab != null) {
                         IconButton(onClick = { onOpenPreview(activeTab.id) }) {
-                            Icon(Icons.Filled.PlayArrow, contentDescription = "Live preview")
+                            Icon(Icons.Filled.PlayArrow, contentDescription = s.editorLivePreview)
                         }
                     }
                     IconButton(onClick = {
                         scope.launch {
                             val id = activeTab?.id ?: return@launch
                             val ok = repo.saveTab(id)
-                            if (ok) snackbarHostState.showSnackbar("Saved")
-                            else snackbarHostState.showSnackbar("Save failed")
+                            if (ok) snackbarHostState.showSnackbar(s.editorSaved)
+                            else snackbarHostState.showSnackbar(s.editorSaveFailed)
                         }
                     }) {
-                        Icon(Icons.Filled.Save, contentDescription = "Save")
+                        Icon(Icons.Filled.Save, contentDescription = s.editorSave)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -266,6 +281,8 @@ fun EditorScreen(
                     showLineNumbers = lineNumbers,
                     wordWrap = wordWrap,
                     autoIndent = autoIndent,
+                    jumpToken = jumpToken,
+                    jumpLine = pendingGoToLine ?: activeTab.cursorLine,
                     modifier = Modifier.fillMaxSize(),
                 )
             } else {
@@ -274,7 +291,7 @@ fun EditorScreen(
                     contentAlignment = Alignment.Center,
                 ) {
                     Text(
-                        text = "Open or create a file to start editing",
+                        text = s.editorEmpty,
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -283,11 +300,57 @@ fun EditorScreen(
         }
     }
 
+    // Go-to-Line dialog.
+    if (showGoToLine) {
+        var lineInput by remember { mutableStateOf("") }
+        AlertDialog(
+            onDismissRequest = { showGoToLine = false },
+            title = { Text(s.dialogGoToLineTitle) },
+            text = {
+                OutlinedTextField(
+                    value = lineInput,
+                    onValueChange = { lineInput = it.filter { ch -> ch.isDigit() } },
+                    placeholder = { Text(s.dialogGoToLineHint) },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Number,
+                        imeAction = ImeAction.Done,
+                    ),
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    val n = lineInput.toIntOrNull()
+                    if (n != null && n > 0) {
+                        pendingGoToLine = n
+                    }
+                    showGoToLine = false
+                }) { Text(s.commonOk) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showGoToLine = false }) { Text(s.dialogCancel) }
+            },
+        )
+    }
+
+    // Apply the requested go-to-line by storing the cursor on the tab
+    // AND bumping `jumpToken` so the CodeEditor's `LaunchedEffect`
+    // picks up the new line and moves the caret + scroll position.
+    LaunchedEffect(pendingGoToLine) {
+        val targetLine = pendingGoToLine ?: return@LaunchedEffect
+        pendingGoToLine = null
+        val tab = activeTab ?: return@LaunchedEffect
+        val safeLine = (targetLine - 1).coerceAtLeast(0)
+        repo.updateTabCursor(tab.id, safeLine, 0)
+        jumpToken++
+        snackbarHostState.showSnackbar("${s.dialogGoToLineTitle}: $targetLine")
+    }
+
     showUnsaved?.let { id ->
         AlertDialog(
             onDismissRequest = { showUnsaved = null },
-            title = { Text("Unsaved changes") },
-            text = { Text("Save before closing?") },
+            title = { Text(s.dialogUnsavedTitle) },
+            text = { Text(s.dialogUnsavedBody) },
             confirmButton = {
                 TextButton(onClick = {
                     showUnsaved = null
@@ -296,7 +359,7 @@ fun EditorScreen(
                         repo.closeTab(id, discardUnsaved = false)
                         if (repo.tabs.value.isEmpty()) onBack()
                     }
-                }) { Text("Save") }
+                }) { Text(s.dialogSave) }
             },
             dismissButton = {
                 Row {
@@ -306,11 +369,9 @@ fun EditorScreen(
                             repo.closeTab(id, discardUnsaved = true)
                             if (repo.tabs.value.isEmpty()) onBack()
                         }
-                    }) { Text("Discard") }
+                    }) { Text(s.dialogDiscard) }
                     Spacer(Modifier.width(8.dp))
-                    TextButton(onClick = { showUnsaved = null }) {
-                        Text("Cancel")
-                    }
+                    TextButton(onClick = { showUnsaved = null }) { Text(s.dialogCancel) }
                 }
             },
         )
@@ -318,14 +379,7 @@ fun EditorScreen(
 }
 
 /**
- * Upgraded Search & Replace bar (v0.0.3).
- *
- * Features:
- *  - Find next / find previous (caret-aware)
- *  - Replace single match / Replace all
- *  - Case-sensitivity toggle
- *  - Regex toggle (with safe compile error display)
- *  - Live match count
+ * Upgraded Search & Replace bar (v0.0.3, i18n'd in v0.0.4).
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -335,15 +389,16 @@ private fun SearchReplaceBar(
     onMessage: (String) -> Unit,
     onClose: () -> Unit,
 ) {
+    val activeLanguage by Strings.active.collectAsState()
+    val s = Strings.get()
+
     var query by remember { mutableStateOf("") }
     var replacement by remember { mutableStateOf("") }
     var caseSensitive by remember { mutableStateOf(false) }
     var useRegex by remember { mutableStateOf(false) }
     var currentMatchIndex by remember { mutableIntStateOf(-1) }
     var totalMatches by remember { mutableIntStateOf(0) }
-    var cursorOffset by remember { mutableIntStateOf(0) }
 
-    // Recompute matches whenever the query, text, or toggles change.
     LaunchedEffect(query, tab.content, caseSensitive, useRegex) {
         if (query.isEmpty()) {
             totalMatches = 0
@@ -370,7 +425,7 @@ private fun SearchReplaceBar(
                 value = query,
                 onValueChange = { query = it },
                 modifier = Modifier.weight(1f),
-                placeholder = { Text("Find") },
+                placeholder = { Text(s.editorFind) },
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(
                     capitalization = if (caseSensitive) KeyboardCapitalization.Sentences
@@ -386,21 +441,19 @@ private fun SearchReplaceBar(
                 onClick = {
                     if (matches.isEmpty()) return@IconButton
                     currentMatchIndex = (currentMatchIndex - 1 + matches.size) % matches.size
-                    cursorOffset = matches[currentMatchIndex].first
                 },
                 enabled = matches.isNotEmpty(),
             ) {
-                Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = "Previous match")
+                Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = s.editorPreviousMatch)
             }
             IconButton(
                 onClick = {
                     if (matches.isEmpty()) return@IconButton
                     currentMatchIndex = (currentMatchIndex + 1) % matches.size
-                    cursorOffset = matches[currentMatchIndex].first
                 },
                 enabled = matches.isNotEmpty(),
             ) {
-                Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = "Next match")
+                Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = s.editorNextMatch)
             }
             Text(
                 text = if (matches.isEmpty()) "0 / 0" else "${currentMatchIndex + 1} / ${totalMatches}",
@@ -410,7 +463,7 @@ private fun SearchReplaceBar(
                 fontFamily = FontFamily.Monospace,
             )
             IconButton(onClick = onClose) {
-                Icon(Icons.Filled.Close, contentDescription = "Close search")
+                Icon(Icons.Filled.Close, contentDescription = s.editorCloseSearch)
             }
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -418,7 +471,7 @@ private fun SearchReplaceBar(
                 value = replacement,
                 onValueChange = { replacement = it },
                 modifier = Modifier.weight(1f),
-                placeholder = { Text("Replace") },
+                placeholder = { Text(s.editorReplace) },
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(
                     capitalization = KeyboardCapitalization.None,
@@ -431,9 +484,8 @@ private fun SearchReplaceBar(
             Spacer(Modifier.width(6.dp))
             IconButton(
                 onClick = {
-                    // Replace the CURRENT match only.
                     if (matches.isEmpty() || currentMatchIndex !in matches.indices) {
-                        onMessage("No match to replace")
+                        onMessage(s.editorNoMatchToReplace)
                         return@IconButton
                     }
                     val (start, end) = matches[currentMatchIndex]
@@ -441,21 +493,21 @@ private fun SearchReplaceBar(
                         replacement +
                         tab.content.substring(end)
                     onApplyChanges(updated)
-                    onMessage("Replaced match ${currentMatchIndex + 1}")
+                    onMessage(s.editorReplacedMatchN.format(currentMatchIndex + 1))
                 },
             ) {
-                Icon(Icons.Filled.AutoFixHigh, contentDescription = "Replace current")
+                Icon(Icons.Filled.AutoFixHigh, contentDescription = s.editorReplaceCurrent)
             }
             TextButton(onClick = {
                 if (matches.isEmpty()) {
-                    onMessage("No matches to replace")
+                    onMessage(s.editorNoMatchesToReplace)
                     return@TextButton
                 }
                 val updated = replaceAllMatches(tab.content, query, replacement, caseSensitive, useRegex)
                 val n = matches.size
                 onApplyChanges(updated)
-                onMessage("Replaced $n occurrence${if (n == 1) "" else "s"}")
-            }) { Text("All") }
+                onMessage(s.editorReplacedNOccurrences.format(n))
+            }) { Text(s.editorReplaceAll) }
             Spacer(Modifier.width(4.dp))
             Text("Aa", fontFamily = FontFamily.Monospace, fontSize = 12.sp)
             Switch(checked = caseSensitive, onCheckedChange = { caseSensitive = it })
@@ -480,7 +532,6 @@ private fun findAllMatches(
             val regex = Regex(needle, flags)
             regex.findAll(haystack).map { it.range.first to it.range.last + 1 }.toList()
         } else {
-            // Literal substring search.
             val needleNorm = if (caseSensitive) needle else needle.lowercase()
             val hayNorm = if (caseSensitive) haystack else haystack.lowercase()
             val result = mutableListOf<Pair<Int, Int>>()
@@ -494,8 +545,6 @@ private fun findAllMatches(
             result
         }
     } catch (e: Throwable) {
-        // Invalid regex → return empty list. The user will see "0 / 0"
-        // in the match counter; they can fix the pattern.
         emptyList()
     }
 }

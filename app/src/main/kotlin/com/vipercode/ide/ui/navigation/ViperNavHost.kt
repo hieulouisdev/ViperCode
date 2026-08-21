@@ -15,6 +15,8 @@ import com.vipercode.ide.ui.screens.AboutScreen
 import com.vipercode.ide.ui.screens.EditorScreen
 import com.vipercode.ide.ui.screens.HomeScreen
 import com.vipercode.ide.ui.screens.PreviewScreen
+import com.vipercode.ide.ui.screens.QuickOpenScreen
+import com.vipercode.ide.ui.screens.SearchInFilesScreen
 import com.vipercode.ide.ui.screens.SettingsScreen
 import com.vipercode.ide.ui.screens.SplashScreen
 
@@ -25,18 +27,21 @@ object Routes {
     const val PREVIEW = "preview/{tabId}"
     const val SETTINGS = "settings"
     const val ABOUT = "about"
+    const val SEARCH_IN_FILES = "search_in_files"
+    const val QUICK_OPEN = "quick_open"
 }
 
 /**
  * Top-level navigation graph for ViperCode.
  *
- * v0.0.3 fixes:
- *  - The splash screen is no longer bypassed by an early `LaunchedEffect`.
- *    v0.0.2 unconditionally called `navController.navigate(HOME)` on
- *    first composition, so [SplashScreen]'s own 1.1 s `delay` never got
- *    to run. The composable's `onContinue` is now the only trigger.
- *  - Added the [Routes.PREVIEW] destination so the editor can hand off
- *    to a WebView-backed HTML/CSS/JS live preview screen.
+ * v0.0.4 additions:
+ *  - [Routes.SEARCH_IN_FILES] — workspace-wide text search.
+ *  - [Routes.QUICK_OPEN] — VS Code "Ctrl+P" style file picker.
+ *
+ * Both new screens hand off to the editor route when the user taps a
+ * result. The editor route's `tabId` argument is honoured so the
+ * cursor restoration logic in [com.vipercode.ide.ui.components.CodeEditor]
+ * picks up the matching line/column set by the search screen.
  */
 @Composable
 fun ViperNavHost(
@@ -75,6 +80,8 @@ fun ViperNavHost(
                 },
                 onOpenSettings = { navController.navigate(Routes.SETTINGS) },
                 onOpenAbout = { navController.navigate(Routes.ABOUT) },
+                onOpenSearchInFiles = { navController.navigate(Routes.SEARCH_IN_FILES) },
+                onOpenQuickOpen = { navController.navigate(Routes.QUICK_OPEN) },
             )
         }
         composable(
@@ -88,6 +95,8 @@ fun ViperNavHost(
                 onOpenPreview = { id ->
                     navController.navigate(Routes.PREVIEW.replace("{tabId}", id))
                 },
+                onOpenQuickOpen = { navController.navigate(Routes.QUICK_OPEN) },
+                onOpenSearchInFiles = { navController.navigate(Routes.SEARCH_IN_FILES) },
             )
         }
         composable(
@@ -105,6 +114,26 @@ fun ViperNavHost(
         }
         composable(Routes.ABOUT) {
             AboutScreen(onBack = { navController.popBackStack() })
+        }
+        composable(Routes.SEARCH_IN_FILES) {
+            SearchInFilesScreen(
+                onBack = { navController.popBackStack() },
+                onOpenFile = { tabId ->
+                    navController.navigate(Routes.EDITOR.replace("{tabId}", tabId)) {
+                        popUpTo(Routes.HOME)
+                    }
+                },
+            )
+        }
+        composable(Routes.QUICK_OPEN) {
+            QuickOpenScreen(
+                onBack = { navController.popBackStack() },
+                onOpenFile = { tabId ->
+                    navController.navigate(Routes.EDITOR.replace("{tabId}", tabId)) {
+                        popUpTo(Routes.HOME)
+                    }
+                },
+            )
         }
     }
 }
