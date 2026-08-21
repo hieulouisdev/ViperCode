@@ -1,0 +1,102 @@
+<resources>
+    <string name="app_name">ViperCode</string>
+    <string name="app_tagline">The class of perfection</string>
+    <string name="app_version">v0.0.1</string>
+
+    <!-- Navigation -->
+    <string name="nav_home">Workspace</string>
+    <string name="nav_editor">Editor</string>
+    <string name="nav_settings">Settings</string>
+    <string name="nav_about">About</string>
+
+    <!-- Splash -->
+    <string name="splash_loading">Initializing workspace…</string>
+
+    <!-- Home / File Explorer -->
+    <string name="home_title">Workspace</string>
+    <string name="home_open_folder">Open folder</string>
+    <string name="home_recent">Recent files</string>
+    <string name="home_no_recent">No recent files yet</string>
+    <string name="home_no_folder">No folder opened</string>
+    <string name="home_pick_folder">Pick a folder to start coding</string>
+    <string name="home_new_file">New file</string>
+    <string name="home_new_folder">New folder</string>
+    <string name="home_refresh">Refresh</string>
+    <string name="home_close_folder">Close folder</string>
+
+    <!-- Editor -->
+    <string name="editor_save">Save</string>
+    <string name="editor_save_as">Save as</string>
+    <string name="editor_close">Close</string>
+    <string name="editor_unsaved">Unsaved changes</string>
+    <string name="editor_format">Format</string>
+    <string name="editor_search">Search</string>
+    <string name="editor_word_wrap">Word wrap</string>
+    <string name="editor_show_lines">Show line numbers</string>
+    <string name="editor_saved">Saved</string>
+    <string name="editor_save_failed">Save failed</string>
+    <string name="editor_readonly">Read only</string>
+    <string name="editor_empty_hint">Open or create a file to start editing</string>
+    <string name="editor_tab_close">Close tab</string>
+    <string name="editor_language">Language: %1$s</string>
+    <string name="editor_encoding">Encoding: %1$s</string>
+    <string name="editor_lines_count">%1$d lines</string>
+
+    <!-- Settings -->
+    <string name="settings_title">Settings</string>
+    <string name="settings_appearance">Appearance</string>
+    <string name="settings_theme">Theme</string>
+    <string name="settings_theme_system">System</string>
+    <string name="settings_theme_dark">Dark</string>
+    <string name="settings_theme_light">Light</string>
+    <string name="settings_dynamic_color">Dynamic color (Android 12+)</string>
+    <string name="settings_editor">Editor</string>
+    <string name="settings_font_size">Font size: %1$d sp</string>
+    <string name="settings_word_wrap">Word wrap</string>
+    <string name="settings_line_numbers">Show line numbers</string>
+    <string name="settings_auto_save">Auto save</string>
+    <string name="settings_auto_indent">Auto indent</string>
+    <string name="settings_tab_size">Tab size: %1$d spaces</string>
+    <string name="settings_font_family">Font family</string>
+    <string name="settings_font_mono">JetBrains Mono</string>
+    <string name="settings_font_fira">Fira Code</string>
+    <string name="settings_font_default">System default</string>
+    <string name="settings_about">About ViperCode</string>
+
+    <!-- About -->
+    <string name="about_title">About</string>
+    <string name="about_description">A modern, performant code editor for Android. Built for developers who demand the class of perfection in every keystroke.</string>
+    <string name="about_features">Features</string>
+    <string name="about_feature_1">Multi-language syntax highlighting</string>
+    <string name="about_feature_2">Multi-tab editing</string>
+    <string name="about_feature_3">Storage Access Framework support</string>
+    <string name="about_feature_4">Material 3 dynamic theming</string>
+    <string name="about_feature_5">Optimized for Android 7.1.1+</string>
+    <string name="about_tech_stack">Tech Stack</string>
+    <string name="about_developer">Developed by hieulouisdev</string>
+    <string name="about_repo">Source code on GitHub</string>
+    <string name="about_license">Released under the MIT License</string>
+
+    <!-- Common -->
+    <string name="action_cancel">Cancel</string>
+    <string name="action_ok">OK</string>
+    <string name="action_save">Save</string>
+    <string name="action_delete">Delete</string>
+    <string name="action_rename">Rename</string>
+    <string name="action_open">Open</string>
+    <string name="action_close">Close</string>
+    <string name="action_back">Back</string>
+    <string name="action_done">Done</string>
+    <string name="dialog_new_file_name">File name</string>
+    <string name="dialog_new_folder_name">Folder name</string>
+    <string name="dialog_confirm_delete">Delete \"%1$s\"?</string>
+    <string name="dialog_unsaved_changes">You have unsaved changes. Save before closing?</string>
+    <string name="error_load_file">Could not load file</string>
+    <string name="error_save_file">Could not save file</string>
+    <string name="error_create_file">Could not create file</string>
+    <string name="error_permission_denied">Permission denied</string>
+
+    <!-- Notifications -->
+    <string name="notif_channel_name">ViperCode Editor</string>
+    <string name="notif_channel_desc">Background file save notifications</string>
+</resources>

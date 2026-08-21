@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="viper_dark">#0F1525</color>
+    <color name="viper_accent">#4089F6</color>
+    <color name="viper_accent_light">#6BA0FA</color>
+    <color name="viper_surface">#161D2F</color>
+    <color name="viper_on_dark">#E8ECF4</color>
+    <color name="viper_on_light">#0F1525</color>
+    <color name="black">#FF000000</color>
+    <color name="white">#FFFFFFFF</color>
+</resources>

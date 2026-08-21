@@ -1,0 +1,16 @@
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <!-- Base application theme (used as fallback) -->
+    <style name="Theme.ViperCode" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:statusBarColor">@color/viper_dark</item>
+        <item name="android:navigationBarColor">@color/viper_dark</item>
+        <item name="android:windowBackground">@color/viper_dark</item>
+    </style>
+
+    <!-- Splash screen theme (Android 12+ style; back-ported via SplashScreen compat lib) -->
+    <style name="Theme.ViperCode.Splash" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/viper_dark</item>
+        <item name="windowSplashScreenAnimatedIcon">@mipmap/ic_launcher_splash</item>
+        <item name="windowSplashScreenIconBackgroundColor">@color/viper_dark</item>
+        <item name="postSplashScreenTheme">@style/Theme.ViperCode</item>
+    </style>
+</resources>
