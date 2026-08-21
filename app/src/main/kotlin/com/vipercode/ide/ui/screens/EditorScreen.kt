@@ -14,8 +14,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.AutoFixHigh
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.ContentReplace
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Search
@@ -444,7 +444,7 @@ private fun SearchReplaceBar(
                     onMessage("Replaced match ${currentMatchIndex + 1}")
                 },
             ) {
-                Icon(Icons.Filled.ContentReplace, contentDescription = "Replace current")
+                Icon(Icons.Filled.AutoFixHigh, contentDescription = "Replace current")
             }
             TextButton(onClick = {
                 if (matches.isEmpty()) {

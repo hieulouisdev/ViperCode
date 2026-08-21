@@ -165,6 +165,9 @@ fun PreviewScreen(
                 },
                 update = { webview ->
                     // Reload the document whenever composedHtml changes.
+                    // The update callback fires on every recomposition
+                    // where the captured `composedHtml` value differs
+                    // from the previous one.
                     webview.loadDataWithBaseURL(
                         "about:blank",
                         composedHtml,
@@ -173,14 +176,13 @@ fun PreviewScreen(
                         null,
                     )
                 },
-                key = { refreshKey },
             )
         }
     }
 
     // Auto-refresh debounce: re-render 600 ms after the user stops
-    // typing. We bump refreshKey so the AndroidView's key changes,
-    // which forces `update` to run with the latest composedHtml.
+    // typing. We bump refreshKey so the AndroidView's `update`
+    // re-fires with the latest composedHtml.
     LaunchedEffect(activeTab?.content, activeTab?.id) {
         delay(600)
         refreshKey++

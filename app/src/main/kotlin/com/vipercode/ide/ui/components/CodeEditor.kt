@@ -32,7 +32,9 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.OffsetMapping
 import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.text.input.TransformedText
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -127,13 +129,12 @@ fun CodeEditor(
     // caret moves.
     val caretOffset = fieldValue.selection.min
     val transformation = remember(tab.language, caretOffset) {
-        VisualTransformation { text ->
-            val highlighted = SyntaxHighlighter.highlight(text.text, tab.language)
-            val augmented = SyntaxHints.augment(text.text, highlighted, caretOffset)
-            androidx.compose.ui.text.input.TransformedText(
-                augmented,
-                androidx.compose.ui.text.input.OffsetMapping.Identity,
-            )
+        object : VisualTransformation {
+            override fun filter(text: AnnotatedString): TransformedText {
+                val highlighted = SyntaxHighlighter.highlight(text.text, tab.language)
+                val augmented = SyntaxHints.augment(text.text, highlighted, caretOffset)
+                return TransformedText(augmented, OffsetMapping.Identity)
+            }
         }
     }
 

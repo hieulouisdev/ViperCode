@@ -144,14 +144,16 @@ object FileUtils {
      * then files follow in the same order — matches the UX of most
      * desktop file explorers.
      */
-    suspend fun listChildren(context: Context, dirUri: Uri): List<FileNode> = try {
-        val dir = resolve(context, dirUri) ?: return emptyList()
-        if (!dir.isDirectory) return emptyList()
-        dir.listFiles().map { it.toFileNode(parent = dirUri) }
-            .sortedWith(compareBy({ !it.isDirectory }, { it.name.lowercase() }))
-    } catch (e: Throwable) {
-        if (e is kotlinx.coroutines.CancellationException) throw e
-        emptyList()
+    suspend fun listChildren(context: Context, dirUri: Uri): List<FileNode> {
+        return try {
+            val dir = resolve(context, dirUri)
+            if (dir == null || !dir.isDirectory) return emptyList()
+            dir.listFiles().map { it.toFileNode(parent = dirUri) }
+                .sortedWith(compareBy({ !it.isDirectory }, { it.name.lowercase() }))
+        } catch (e: Throwable) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
+            emptyList()
+        }
     }
 
     /**
@@ -159,8 +161,8 @@ object FileUtils {
      * the same name already exists, a numeric suffix is appended so the
      * call never overwrites existing data.
      */
-    suspend fun createFile(context: Context, parentUri: Uri, name: String): FileNode? =
-        try {
+    suspend fun createFile(context: Context, parentUri: Uri, name: String): FileNode? {
+        return try {
             val parent = resolve(context, parentUri) ?: return null
             val finalName = uniqueName(parent, name)
             val mime = mimeFromName(name)
@@ -170,9 +172,10 @@ object FileUtils {
             if (e is kotlinx.coroutines.CancellationException) throw e
             null
         }
+    }
 
-    suspend fun createDirectory(context: Context, parentUri: Uri, name: String): FileNode? =
-        try {
+    suspend fun createDirectory(context: Context, parentUri: Uri, name: String): FileNode? {
+        return try {
             val parent = resolve(context, parentUri) ?: return null
             val finalName = uniqueName(parent, name, isDir = true)
             val created = parent.createDirectory(finalName) ?: return null
@@ -181,19 +184,24 @@ object FileUtils {
             if (e is kotlinx.coroutines.CancellationException) throw e
             null
         }
-
-    suspend fun rename(context: Context, uri: Uri, newName: String): Boolean = try {
-        resolve(context, uri)?.renameTo(newName) ?: false
-    } catch (e: Throwable) {
-        if (e is kotlinx.coroutines.CancellationException) throw e
-        false
     }
 
-    suspend fun delete(context: Context, uri: Uri): Boolean = try {
-        resolve(context, uri)?.delete() ?: false
-    } catch (e: Throwable) {
-        if (e is kotlinx.coroutines.CancellationException) throw e
-        false
+    suspend fun rename(context: Context, uri: Uri, newName: String): Boolean {
+        return try {
+            resolve(context, uri)?.renameTo(newName) ?: false
+        } catch (e: Throwable) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
+            false
+        }
+    }
+
+    suspend fun delete(context: Context, uri: Uri): Boolean {
+        return try {
+            resolve(context, uri)?.delete() ?: false
+        } catch (e: Throwable) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
+            false
+        }
     }
 
     private fun uniqueName(parent: DocumentFile, name: String, isDir: Boolean = false): String {
