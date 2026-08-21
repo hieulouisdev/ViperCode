@@ -1,3 +1,5 @@
+import java.io.File as JavaFile
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -29,12 +31,12 @@ android {
     val storePassword = System.getenv("VIPC_SIGNING_STORE_PASSWORD") ?: "android"
     val keyAlias = System.getenv("VIPC_SIGNING_KEY_ALIAS") ?: "vipercode"
     val keyPassword = System.getenv("VIPC_SIGNING_KEY_PASSWORD") ?: "android"
-    val hasSigning = !storeFilePath.isNullOrBlank() && java.io.File(storeFilePath).exists()
+    val hasSigning = !storeFilePath.isNullOrBlank() && JavaFile(storeFilePath).exists()
 
     signingConfigs {
         if (hasSigning) {
             create("viperRelease") {
-                this.storeFile = java.io.File(storeFilePath!!)
+                this.storeFile = JavaFile(storeFilePath!!)
                 this.storePassword = storePassword
                 this.keyAlias = keyAlias
                 this.keyPassword = keyPassword
