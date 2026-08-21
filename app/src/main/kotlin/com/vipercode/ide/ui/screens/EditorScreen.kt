@@ -1,5 +1,6 @@
 package com.vipercode.ide.ui.screens
 
+import android.content.Intent
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -18,9 +19,11 @@ import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.AutoFixHigh
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Comment
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -31,6 +34,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -67,13 +71,24 @@ import kotlinx.coroutines.launch
 /**
  * Editor screen — wraps the multi-tab bar and a [CodeEditor] instance.
  *
- * v0.0.4 changes:
+ * v0.0.5 changes:
+ *  - **Comment toggle** button in the top bar — bumps
+ *    [commentToggleToken] which the [CodeEditor] picks up via
+ *    `LaunchedEffect` to toggle line-comment on the current
+ *    selection. Picks the right comment syntax per language
+ *    (`#` for Python, `//` for Kotlin/Java/JS, `--` for SQL/Lua,
+ *    etc.).
+ *  - **Share file** button — exports the current file's content via
+ *    Android's share sheet.
+ *  - **Editor status bar** — slim bar at the bottom showing cursor
+ *    line / column, total line count, word count and character
+ *    count. Toggleable in Settings.
+ *  - **Auto-close brackets** setting passed through to [CodeEditor].
  *  - All UI strings routed through [Strings.get] (Vietnamese support).
- *  - **Go to line**: a new top-bar action asks for a line number and
+ *  - **Go to line**: top-bar action asks for a line number and
  *    restores the caret there. Lives in [showGoToLine].
  *  - **Quick open / Search in files**: top-bar shortcuts that hand
- *    off to dedicated screens (the Editor route now accepts callbacks
- *    `onOpenQuickOpen` and `onOpenSearchInFiles`).
+ *    off to dedicated screens.
  *  - **Tab title shows the file path** in the subtitle for easier
  *    orientation in big workspaces.
  */
@@ -102,6 +117,9 @@ fun EditorScreen(
     val autoIndent by SettingsRepository.autoIndent.flow.collectAsState(initial = true)
     val autoSaveEnabled by SettingsRepository.autoSave.flow.collectAsState(initial = true)
     val autoSaveDelayMs by SettingsRepository.autoSaveDelayMs.flow.collectAsState(initial = 1500)
+    // v0.0.5 — new editor prefs.
+    val autoCloseBrackets by SettingsRepository.autoCloseBrackets.flow.collectAsState(initial = true)
+    val showStatusBar by SettingsRepository.showStatusBar.flow.collectAsState(initial = true)
 
     val snackbarHostState = remember { SnackbarHostState() }
     var showUnsaved by remember { mutableStateOf<String?>(null) }
@@ -109,6 +127,12 @@ fun EditorScreen(
     var showGoToLine by remember { mutableStateOf(false) }
     var pendingGoToLine by remember { mutableStateOf<Int?>(null) }
     var jumpToken by remember { mutableIntStateOf(0) }
+    // v0.0.5 — comment-toggle hook.
+    var commentToggleToken by remember { mutableIntStateOf(0) }
+    // v0.0.5 — cursor position for the status bar.
+    var cursorLine by remember { mutableIntStateOf(0) }
+    var cursorColumn by remember { mutableIntStateOf(0) }
+    var selectionLength by remember { mutableIntStateOf(0) }
 
     // Resolve the actual active tab — prefer the repo's activeTabId,
     // fall back to the tabId from the route so the editor is never
@@ -205,13 +229,37 @@ fun EditorScreen(
                     IconButton(onClick = { showGoToLine = true }) {
                         Icon(Icons.AutoMirrored.Filled.MenuBook, contentDescription = s.editorGoToLine)
                     }
+                    // v0.0.5 — comment toggle.
+                    IconButton(onClick = { commentToggleToken++ }) {
+                        Icon(Icons.Filled.Comment, contentDescription = s.editorCommentToggle)
+                    }
                     IconButton(onClick = onOpenQuickOpen) {
                         Icon(Icons.Filled.Bolt, contentDescription = s.editorQuickOpen)
                     }
                     IconButton(onClick = onOpenSearchInFiles) {
                         Icon(Icons.Filled.Search, contentDescription = s.editorSearchInFiles)
                     }
-                    if (isHtmlTab && activeTab != null) {
+                    // v0.0.5 — share file content via Android share sheet.
+                    IconButton(onClick = {
+                        val tab = activeTab
+                        if (tab == null) {
+                            scope.launch { snackbarHostState.showSnackbar(s.editorShareFailed) }
+                            return@IconButton
+                        }
+                        val send = Intent(Intent.ACTION_SEND).apply {
+                            type = "text/plain"
+                            putExtra(Intent.EXTRA_TEXT, tab.content)
+                            putExtra(Intent.EXTRA_SUBJECT, tab.name)
+                        }
+                        runCatching {
+                            context.startActivity(Intent.createChooser(send, s.editorShare))
+                        }.onFailure {
+                            scope.launch { snackbarHostState.showSnackbar(s.editorShareFailed) }
+                        }
+                    }) {
+                        Icon(Icons.Filled.Share, contentDescription = s.editorShare)
+                    }
+                    if ((isHtmlTab || isMarkdownTab) && activeTab != null) {
                         IconButton(onClick = { onOpenPreview(activeTab.id) }) {
                             Icon(Icons.Filled.PlayArrow, contentDescription = s.editorLivePreview)
                         }
@@ -231,6 +279,18 @@ fun EditorScreen(
                     containerColor = MaterialTheme.colorScheme.surface,
                 ),
             )
+        },
+        bottomBar = {
+            // v0.0.5 — editor status bar.
+            if (showStatusBar && activeTab != null) {
+                EditorStatusBar(
+                    tab = activeTab,
+                    cursorLine = cursorLine,
+                    cursorColumn = cursorColumn,
+                    selectionLength = selectionLength,
+                    s = s,
+                )
+            }
         },
     ) { padding ->
         Column(modifier = Modifier.fillMaxSize().padding(padding)) {
@@ -275,14 +335,19 @@ fun EditorScreen(
                     },
                     onCursorChange = { line, col ->
                         repo.updateTabCursor(activeTab.id, line, col)
+                        cursorLine = line
+                        cursorColumn = col
+                        selectionLength = 0
                     },
                     fontSize = fontSize,
                     tabSize = tabSize,
                     showLineNumbers = lineNumbers,
                     wordWrap = wordWrap,
                     autoIndent = autoIndent,
+                    autoCloseBrackets = autoCloseBrackets,
                     jumpToken = jumpToken,
                     jumpLine = pendingGoToLine ?: activeTab.cursorLine,
+                    commentToggleToken = commentToggleToken,
                     modifier = Modifier.fillMaxSize(),
                 )
             } else {
@@ -375,6 +440,65 @@ fun EditorScreen(
                 }
             },
         )
+    }
+}
+
+/**
+ * v0.0.5 — slim status bar at the bottom of the editor showing
+ * line/column position, total line count, word count, character count
+ * and selection length.
+ */
+@Composable
+private fun EditorStatusBar(
+    tab: com.vipercode.ide.data.model.EditorTab,
+    cursorLine: Int,
+    cursorColumn: Int,
+    selectionLength: Int,
+    s: Strings.T,
+) {
+    val lineCount = remember(tab.content) {
+        tab.content.count { it == '\n' } + 1
+    }
+    val wordCount = remember(tab.content) {
+        if (tab.content.isBlank()) 0
+        else tab.content.trim().split(Regex("\\s+")).size
+    }
+    val charCount = tab.content.length
+    Surface(
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+        tonalElevation = 2.dp,
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Text(
+                text = s.editorCursor.format(cursorLine + 1, cursorColumn + 1),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontFamily = FontFamily.Monospace,
+                fontSize = 11.sp,
+            )
+            if (selectionLength > 0) {
+                Text(
+                    text = s.editorSelected.format(selectionLength),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.primary,
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 11.sp,
+                )
+            }
+            Text(
+                text = "${s.editorLines}: $lineCount  •  ${s.editorWords}: $wordCount  •  ${s.editorChars}: $charCount",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontFamily = FontFamily.Monospace,
+                fontSize = 11.sp,
+            )
+        }
     }
 }
 

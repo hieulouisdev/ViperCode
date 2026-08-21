@@ -4,6 +4,7 @@ import android.app.Application
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.os.Build
+import com.vipercode.ide.data.prefs.RecentFiles
 import com.vipercode.ide.data.prefs.SettingsRepository
 import com.vipercode.ide.util.Strings
 import kotlinx.coroutines.CoroutineScope
@@ -22,6 +23,10 @@ import java.util.Locale
  * blocking on disk I/O, and applies the saved interface language to
  * [Strings] so the very first frame already speaks the user's preferred
  * language (v0.0.4).
+ *
+ * v0.0.5 — also loads the recent-files list from the persisted
+ * preference so the home screen can show it without a disk read on
+ * every recomposition.
  */
 class ViperCodeApp : Application() {
 
@@ -48,6 +53,9 @@ class ViperCodeApp : Application() {
                 SettingsRepository.LanguageMode.VIETNAMESE -> Strings.Language.VIETNAMESE
             }
             Strings.setLanguage(resolved)
+
+            // v0.0.5 — load the persisted recent-files list.
+            RecentFiles.load()
         }
         registerNotificationChannel()
     }
@@ -76,3 +84,4 @@ class ViperCodeApp : Application() {
             instance ?: error("ViperCodeApp not yet created")
     }
 }
+

@@ -14,8 +14,8 @@ android {
         applicationId = "com.vipercode.ide"
         minSdk = 25
         targetSdk = 35
-        versionCode = 4
-        versionName = "0.0.4"
+        versionCode = 5
+        versionName = "0.0.5"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -40,8 +40,12 @@ android {
                 this.storePassword = storePassword
                 this.keyAlias = keyAlias
                 this.keyPassword = keyPassword
+                // v1 + v2 + v3 signing so the APK installs cleanly on
+                // every Android version from 7.0 (API 24, v1 only)
+                // through 14+ (v3 recommended for key rotation).
                 enableV1Signing = true
                 enableV2Signing = true
+                enableV3Signing = true
             }
         }
     }

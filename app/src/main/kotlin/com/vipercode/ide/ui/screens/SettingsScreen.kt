@@ -81,6 +81,10 @@ fun SettingsScreen(onBack: () -> Unit) {
     val livePreview by SettingsRepository.livePreview.flow.collectAsState(initial = true)
     val previewDelayMs by SettingsRepository.previewDelayMs.flow.collectAsState(initial = 800)
 
+    // v0.0.5 — new editor prefs.
+    val autoCloseBrackets by SettingsRepository.autoCloseBrackets.flow.collectAsState(initial = true)
+    val showStatusBar by SettingsRepository.showStatusBar.flow.collectAsState(initial = true)
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -156,6 +160,20 @@ fun SettingsScreen(onBack: () -> Unit) {
                 subtitle = s.settingsAutoIndentDesc,
                 checked = autoIndent,
                 onChange = { v -> scope.launch { SettingsRepository.autoIndent.set(v) } },
+            )
+            // v0.0.5 — auto-close brackets toggle.
+            ToggleRow(
+                title = s.settingsAutoCloseBrackets,
+                subtitle = s.settingsAutoCloseBracketsDesc,
+                checked = autoCloseBrackets,
+                onChange = { v -> scope.launch { SettingsRepository.autoCloseBrackets.set(v) } },
+            )
+            // v0.0.5 — show editor status bar.
+            ToggleRow(
+                title = s.settingsShowStatusBar,
+                subtitle = s.settingsShowStatusBarDesc,
+                checked = showStatusBar,
+                onChange = { v -> scope.launch { SettingsRepository.showStatusBar.set(v) } },
             )
 
             HorizontalDivider()

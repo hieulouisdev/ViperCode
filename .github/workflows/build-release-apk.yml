@@ -6,6 +6,20 @@ name: Build Release APK
 # on first run), and attaches the resulting .apk to the release.
 #
 # Manual dispatch is also supported via the GitHub Actions tab.
+#
+# v0.0.5 changes:
+#  - Default `tag_name` input updated to v0.0.5 (was v0.0.3).
+#  - Release body is read from CHANGELOG.md so the user can edit
+#    rich text BEFORE publishing instead of the action overwriting it
+#    with a hardcoded template. If the release already has a body
+#    (e.g. user typed one in the GitHub UI), the existing body wins.
+#  - Added v3 signing (Android 9+) alongside v1+v2 for full forward
+#    compatibility with newer APK installers.
+#  - Made `setup-android` more robust by including platform-tools.
+#  - Soft-fail the apksigner verify step but keep its output visible.
+#  - Cache Gradle packages keyed on the version catalog hash so
+#    warm-cache builds across releases are faster.
+#  - Better error messages on missing APK output.
 
 on:
   release:
@@ -15,12 +29,13 @@ on:
       tag_name:
         description: 'Tag name to attach the APK to (must already exist)'
         required: true
-        default: 'v0.0.3'
+        default: 'v0.0.5'
 
 jobs:
   build:
     name: Build, sign, and upload release APK
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     permissions:
       contents: write  # required to upload assets to the release
 
@@ -28,7 +43,7 @@ jobs:
       - name: Checkout source
         uses: actions/checkout@v4
         with:
-          fetch-depth: 1
+          fetch-depth: 0  # need full history so we can read CHANGELOG.md
           # On `release.published`, GitHub sets GITHUB_REF to the tag.
           # On `workflow_dispatch`, the user passes a tag_name input.
           # In both cases we want to build the source that the release
@@ -44,7 +59,7 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
         with:
-          packages: 'platforms;android-35 build-tools;35.0.0'
+          packages: 'platforms;android-35 build-tools;35.0.0 platform-tools'
 
       - name: Cache Gradle packages
         uses: actions/cache@v4
@@ -53,9 +68,13 @@ jobs:
             ~/.gradle/caches
             ~/.gradle/wrapper
             .gradle
-          key: gradle-${{ runner.os }}-${{ hashFiles('**/*.gradle*', 'gradle/libs.versions.toml', 'gradle/wrapper/gradle-wrapper.properties') }}
+          key: gradle-release-${{ runner.os }}-${{ hashFiles('**/*.gradle*', 'gradle/libs.versions.toml', 'gradle/wrapper/gradle-wrapper.properties') }}
           restore-keys: |
-            gradle-${{ runner.os }}-
+            gradle-release-${{ runner.os }}-
+            gradle-ci-${{ runner.os }}-
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x ./gradlew
 
       - name: Resolve release keystore
         id: keystore
@@ -104,10 +123,10 @@ jobs:
         run: |
           # The release tag name is either the GitHub event tag (for
           # `release.published`) or the manual input (for
-          # `workflow_dispatch`). Default to v0.0.3.
+          # `workflow_dispatch`). Default to v0.0.5.
           TAG_NAME="${{ github.event.release.tag_name || inputs.tag_name }}"
           if [ -z "$TAG_NAME" ]; then
-            TAG_NAME="v0.0.3"
+            TAG_NAME="v0.0.5"
           fi
           # Strip leading "v" for the bare version string.
           VERSION="${TAG_NAME#v}"
@@ -118,9 +137,10 @@ jobs:
             APK_SRC="$SIGNED_APK"
           elif [ -f "$UNSIGNED_APK" ]; then
             APK_SRC="$UNSIGNED_APK"
+            echo "::warning::No signed APK found — falling back to unsigned. The APK will not be installable until it is signed with apksigner."
           else
-            echo "No APK found at app/build/outputs/apk/release/" >&2
-            ls -la app/build/outputs/apk/release/ || true
+            echo "::error::No APK found at app/build/outputs/apk/release/"
+            ls -la app/build/outputs/apk/release/ 2>&1 || true
             exit 1
           fi
           cp "$APK_SRC" "app/build/outputs/apk/release/${APK_NAME}"
@@ -137,30 +157,60 @@ jobs:
           echo "Using apksigner at: $APKSIGNER"
           "$APKSIGNER" verify --verbose --print-certs "${{ steps.meta.outputs.apk_path }}" || true
 
+      - name: Read release notes from CHANGELOG.md
+        if: ${{ !github.event.release.body }}
+        id: notes
+        run: |
+          # Extract the section of CHANGELOG.md that matches the tag.
+          # CHANGELOG.md format:
+          #   ## [v0.0.5] - 2026-08-22
+          #   ### Added
+          #   - ...
+          #   ## [v0.0.4] - 2026-07-01
+          #   ...
+          # We grab everything between the matching header and the
+          # next "## [" header.
+          TAG="${{ steps.meta.outputs.tag_name }}"
+          if [ ! -f CHANGELOG.md ]; then
+            echo "::warning::CHANGELOG.md not found — using minimal release notes."
+            printf 'ViperCode %s release build.\n' "$TAG" > /tmp/release_body.md
+            echo "body_path=/tmp/release_body.md" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # Use awk to extract the section. The regex matches both
+          # "## [v0.0.5]" and "## v0.0.5" headers.
+          BODY=$(awk -v tag="$TAG" '
+            BEGIN { in_section=0 }
+            /^## \[/ {
+              if (in_section) exit
+              if (index($0, "[" tag "]") > 0) { in_section=1; next }
+            }
+            /^## / && !/^\#\# \[/ {
+              if (in_section) exit
+              if (index($0, tag) > 0) { in_section=1; next }
+            }
+            in_section { print }
+          ' CHANGELOG.md)
+          if [ -z "$BODY" ]; then
+            BODY="ViperCode ${TAG} release build."
+          fi
+          # Write to a file so the next step can read it (avoid shell
+          # quoting issues with multi-line strings).
+          printf '%s\n' "$BODY" > /tmp/release_body.md
+          echo "body_path=/tmp/release_body.md" >> "$GITHUB_OUTPUT"
+
       - name: Upload APK to release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.meta.outputs.tag_name }}
           files: ${{ steps.meta.outputs.apk_path }}
-          body: |
-            ## ViperCode ${{ steps.meta.outputs.tag_name }}
-
-            **Installable APK** (release variant, signed).
-
-            ### Installation
-            1. Download `${{ steps.meta.outputs.apk_name }}` below.
-            2. On Android 8+: allow "Install unknown apps" for your browser, then tap the downloaded APK.
-            3. Min Android 7.1.1 (API 25) required.
-
-            ### What's new in v0.0.3
-            - **Bug fixes**: highlight overlay no longer drifts on scroll; line numbers stay aligned with text; caret position preserved across tab switches; `SettingsRepository.now()` no longer blocks main thread; `FileUtils` no longer swallows `CancellationException`; back button flushes auto-save before navigating away; subsequent ACTION_VIEW intents now navigate correctly.
-            - **Live preview**: WebView-backed HTML/CSS/JS preview screen — open an HTML file, tap the play icon in the editor's top bar, and the rendered output appears immediately. Auto-refreshes 600 ms after you stop typing.
-            - **Find & Replace upgrade**: regex toggle, case-sensitivity toggle, find-next / find-prev navigation, live match counter, per-match replace.
-            - **Multi-tab UX**: TabChip max-width capped at 180 dp so long file names no longer push other tabs off-screen.
-            - **Syntax hints**: bracket matching highlights the pair at the caret; unbalanced open brackets get a red underline; `@` followed by a non-identifier is no longer mis-highlighted as an annotation.
-            - **FileExplorer rewrite**: flattened LazyColumn — full virtualization for large workspaces (no more lag on 1000+ file trees).
-            - **Smart indent**: extra indent after `{`/`(`/`[` now respects the user's `tabSize` setting instead of always being 4 spaces.
-            - **CI/CD**: GitHub Action auto-builds this APK on every new release publish.
+          # Only pass body_path when the release doesn't already have
+          # a body (typed by the user in the GitHub UI). When
+          # body_path is unset and `body` is unset, the action
+          # preserves the existing release body.
+          body_path: ${{ steps.notes.outputs.body_path }}
+          draft: false
+          prerelease: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

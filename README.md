@@ -15,6 +15,7 @@
   <img alt="Kotlin" src="https://img.shields.io/badge/Kotlin-2.0.21-7F52FF?style=flat-square">
   <img alt="Compose" src="https://img.shields.io/badge/Jetpack%20Compose-2024.12.01-4285F4?style=flat-square">
   <img alt="Language" src="https://img.shields.io/badge/i18n-EN%20%2F%20Ti%E1%BA%BFng%20Vi%E1%BB%87t-2196F3?style=flat-square">
+  <img alt="CI" src="https://img.shields.io/github/actions/workflow/status/hieulouisdev/ViperCode/ci.yml?branch=main&label=CI&style=flat-square">
 </p>
 
 ---
@@ -27,15 +28,15 @@ designed from the ground up with the Android Storage Access Framework,
 Material 3 theming, and a fully Compose-native UI — no legacy view
 system, no compromises on startup latency or rendering performance.
 
-ViperCode v0.0.4 ships the editing core plus a major performance
-rewrite of the editor (kills the paste / scroll lag of v0.0.3), adds a
-**Vietnamese interface** (Tiếng Việt), fixes the long-standing
-file-extension duplication bug (`hieu.html` → `hieu.html.htm`), and
-adds new features: workspace-wide search, quick-open, go-to-line,
-duplicate file, sort by name/size/modified, hidden-files toggle, and a
-configurable live preview.
+ViperCode v0.0.5 ships a complete rewrite of the live preview pipeline
+(fixes the long-standing "preview không chạy hoàn toàn file" complaint),
+adds **bracket auto-completion**, a **Markdown live preview**, a
+**JavaScript console overlay**, a **recent files** row, a **share**
+action, a **comment toggle**, an **editor status bar**, and a new CI
+workflow that catches compile errors on every PR before they reach a
+release.
 
-## Features (v0.0.4)
+## Features (v0.0.5)
 
 ### Editor core
 
@@ -46,84 +47,84 @@ configurable live preview.
 - **Multi-tab editing** — open multiple files at once; dirty-state
   tracking prevents accidental data loss. Caret position is preserved
   across tab switches and restored on next launch.
+- **Bracket auto-completion** (v0.0.5) — typing `(`, `[`, `{` auto-
+  inserts the matching close; typing `"` or `'` does the same and is
+  smart enough to NOT auto-close when the next char is alphanumeric.
+  Typing the same close bracket again "skips over" the existing one
+  instead of inserting a duplicate (matches VS Code default
+  behaviour). Toggle in Settings → "Auto-close brackets".
+- **Comment toggle** (v0.0.5) — a top-bar action that toggles line-
+  comment on the current line or selection, picking the right comment
+  syntax per language (`#` for Python, `//` for Kotlin/Java/JS, `--`
+  for SQL/Lua, etc.).
+- **Editor status bar** (v0.0.5) — slim bar at the bottom showing
+  cursor line / column, total line count, word count, character count
+  and selection length. Toggle in Settings → "Show status bar".
+- **Share file** (v0.0.5) — the editor's top bar has a new share icon
+  that exports the current file's content via Android's share sheet.
+- **Recent files** (v0.0.5) — the home screen shows a horizontally
+  scrollable "Recent" row above the file tree. Tap to re-open. Long
+  press the trash icon to clear the list.
 - **Live HTML/CSS/JS preview** — open any HTML file, tap the play icon
   in the editor's top bar, and a WebView renders the page with full
   JavaScript enabled. Auto-refreshes 600 ms after you stop typing. CSS
   and JS from sibling tabs are inlined automatically so a small
   multi-file project works out of the box.
+- **Live Markdown preview** (v0.0.5) — `.md` and `.markdown` files
+  now render in the preview screen with proper heading, list, code-
+  block, link and emphasis support. GFM-style tables are rendered too.
+- **JavaScript console overlay** (v0.0.5) — JS `console.log`, errors
+  and warnings are surfaced in a toggleable bottom panel so you can
+  debug your scripts without leaving the editor.
 - **Find & Replace (upgraded)** — regex toggle, case-sensitivity
   toggle, find-next / find-prev navigation, live match counter, and
-  per-match replace (not just replace-all).
+  per-match replace.
 - **Syntax hints** — when the caret is adjacent to a bracket pair,
   both brackets get a subtle background highlight.
 - **Auto-save** — dirty files are saved automatically after a short
-  idle delay (configurable, 500 ms – 5 s). Back button now flushes
-  auto-save so nothing is lost if you navigate away within the delay
-  window.
+  idle delay (configurable, 500 ms – 5 s).
 - **Robust auto-indent** — Tab expands to spaces; Enter copies the
   previous line's indentation and adds an extra indent after `{`,
-  `(`, `[`, `:` and `=>`. Extra indent respects the user's `tabSize`.
+  `(`, `[`, `:` and `=>`.
 
-### New in v0.0.4
+### Preview pipeline (v0.0.5 rewrite)
 
-- **Vietnamese language (Tiếng Việt)** — pick between English and
-  Vietnamese in Settings; the entire UI flips instantly without an
-  Activity restart. The `Strings.kt` catalogue is the single source
-  of truth — adding more languages is a one-file change.
-- **Massive editor performance rewrite** — the syntax highlighter is
-  now cached via `remember(text, language)` instead of running on
-  every keystroke. The line-number gutter is virtualised via a
-  `LazyColumn` synced to the editor's scroll state. Pasting a 10 000-
-  line file used to freeze the UI for several seconds; it now feels
-  instant.
-- **Massive preview performance rewrite** — `composedHtml` is no
-  longer recomputed on every keystroke (only on refresh tick), the
-  WebView reload is guarded by a content-equality check so spurious
-  recompositions don't nuke the DOM, and a configurable debounce +
-  live-refresh toggle give the user fine control.
-- **Fixed: file extension duplication bug** — creating `hieu.html`
-  no longer produces `hieu.html.htm`, and `gg.css` no longer produces
-  `gg.css.css`. The fix passes `application/octet-stream` as the
-  MIME type when the user supplied an extension, so SAF leaves the
-  file name untouched.
-- **Fixed: folder access after creation** — the FAB only ever created
-  files at the workspace root. v0.0.4 adds a long-press context menu
-  on every folder with "New file here", "New folder here", "Rename",
-  "Duplicate", "Delete". Newly-created folders are auto-expanded.
-- **Search in files** — VS Code "Ctrl+Shift+F" style workspace-wide
-  text search. Walks the entire open folder (case-insensitive
-  substring match on both file name and content), capped at 200 hits.
-  Tap a result to open it in the editor at the matching line.
-- **Quick open** — VS Code "Ctrl+P" style file picker. Walks the
-  workspace once on first open, then filters the cached list as you
-  type. Files whose name starts with the query are ranked first.
-- **Go to line** — top-bar action opens a dialog asking for a line
-  number; the caret jumps there and the editor scrolls the line into
-  view.
-- **Duplicate file / folder** — long-press any file or folder to
-  create a copy next to the original. Directories are duplicated
-  recursively.
-- **Hidden files toggle** — Settings → "Show hidden files" reveals
-  dot-files (e.g. `.gitignore`, `.env`) in the file explorer.
-- **Sort by** — Settings → Sort by Name / Size / Modified. Available
-  directly from the home screen's sort icon too.
-- **Configurable live preview** — Settings → "Live preview
-  auto-refresh" toggle + a delay slider (300 – 3000 ms). The
-  preview's top bar also has a lightning-bolt icon to flip live
-  refresh on/off without leaving the screen.
+The v0.0.4 preview had a number of long-standing bugs that caused
+"preview không chạy hoàn toàn file" (the preview doesn't run the whole
+file). v0.0.5 fixes all of them:
+
+- **Viewport meta tag injection** — mobile pages now render at the
+  correct width by default; the action injects
+  `<meta name="viewport" content="width=device-width, initial-scale=1">`
+  if the user's HTML doesn't already have one.
+- **JavaScript console capture** — `console.log`, `console.error`,
+  `console.warn` and friends are surfaced in a toggleable bottom
+  panel with source file and line number.
+- **Resource error capture** — failed `fetch()` / network errors are
+  also surfaced in the console overlay so you can see why a script
+  isn't loading.
+- **`inlineCompanionAssets` rewrite** — the v0.0.4 fallback
+  `replaceFirst(...).ifBlank { ... }` never triggered because
+  `replaceFirst` always returns the input unchanged when no match is
+  found. v0.0.5 uses a real "append if not present" check.
+- **Link click handling** — clicking an `<a href>` inside the preview
+  now opens the link in the system browser instead of hijacking the
+  WebView's history stack.
+- **Desktop / mobile viewport toggle** — simulate a 1280-px desktop
+  viewport without rotating the device.
+- **Share HTML / Open in browser** — the preview's top bar now has
+  buttons to share the composed HTML or open the page in the system
+  browser.
 
 ### Storage
 
 - **Offline-first storage** — ViperCode ships with a default local
   workspace under the app's private external storage so it works the
   moment you install it, with no permission prompts and no internet.
-  The Storage Access Framework picker remains available for opening
-  any folder on the device.
 - **Storage Access Framework integration** — open any folder on the
   device (internal or external storage, Google Drive, Nextcloud, etc.)
   via the system folder picker. Permissions are persisted across
-  launches (READ + WRITE) so your workspace is exactly where you left
-  it and saves never fail with `SecurityException`.
+  launches.
 
 ### UX
 
@@ -135,80 +136,67 @@ configurable live preview.
 - **Light / Dark / System theme modes** with full Material 3 component
   theming.
 - **Editor preferences** — adjustable font size, tab size, font
-  family, word wrap, line numbers, auto-indent.
-- **External file open** — tap any source file in your file manager and
-  it opens directly in the editor.
+  family, word wrap, line numbers, auto-indent, auto-close brackets,
+  status bar visibility.
+- **External file open** — tap any source file in your file manager
+  and it opens directly in the editor.
 
-## Fixes & changes since v0.0.3
+## CI / CD (v0.0.5)
 
-### Critical bugs
+ViperCode ships TWO GitHub Actions workflows:
 
-- **File extension duplication (`hieu.html.htm`, `gg.css.css`)**:
-  the v0.0.3 `FileUtils.createFile` passed a derived MIME type
-  (e.g. `text/html`) to `DocumentFile.createFile(mime, displayName)`.
-  The ExternalStorageProvider then stripped the user's trailing
-  extension and appended its own preferred extension — which on many
-  Android versions differs from what the user typed (e.g. user types
-  `.html`, provider appends `.htm`). v0.0.4 passes
-  `application/octet-stream` whenever the user supplied an extension,
-  so SAF leaves the file name untouched.
-- **Folder access after creation**: the v0.0.3 FAB only ever created
-  files at the workspace root — there was no way to create a file
-  inside a sub-folder. v0.0.4 adds a long-press context menu on every
-  folder with "New file here" / "New folder here" / "Rename" /
-  "Duplicate" / "Delete". Newly-created folders are auto-expanded so
-  the user can immediately access them.
-- **Editor paste + scroll lag**: the v0.0.3 `CodeEditor` ran
-  `SyntaxHighlighter.highlight` (an O(n) tokeniser) and
-  `SyntaxHints.findUnbalancedBrackets` (another O(n) scan) on EVERY
-  recomposition — i.e. on every keystroke and every caret move. For a
-  5 000-line paste this froze the UI for several seconds. v0.0.4
-  caches the highlighted `AnnotatedString` in a `remember(text,
-  language)` block, replaces the full-document bracket scan with an
-  O(distance) caret-aware walker, and swaps the eager
-  `Column { repeat(lineCount) { Text(...) } }` gutter for a
-  virtualised `LazyColumn` whose scroll state is synced to the
-  editor's `ScrollState`.
-- **Preview lag**: the v0.0.3 `composedHtml` was keyed on
-  `activeTab?.content`, so the regex-based companion asset inliner ran
-  on every keystroke even though the WebView only reloaded after the
-  600 ms debounce. v0.0.4 keys `composedHtml` on `refreshKey` only,
-  guards the WebView reload with a content-equality check so spurious
-  recompositions don't nuke the DOM, and adds a configurable delay +
-  live-refresh toggle.
+- **`.github/workflows/ci.yml`** — runs `lintDebug` + `assembleDebug`
+  on every push and pull request so compile errors are caught BEFORE
+  a release is published. The release workflow is then guaranteed to
+  succeed because the same compile step has already passed.
+- **`.github/workflows/build-release-apk.yml`** — triggered on
+  release published (or via `workflow_dispatch`). Builds a signed
+  release APK, signs it (v1+v2+v3) with either a long-lived keystore
+  stored as a repo secret OR a freshly-generated debug-grade
+  keystore, then attaches the APK to the release.
 
-### UX
+The release workflow reads release notes from `CHANGELOG.md` so the
+user can edit rich text BEFORE publishing. If the release already has
+a body (typed in the GitHub UI), the existing body is preserved.
 
-- **Vietnamese language support**: the entire UI flows through a
-  centralised `Strings.kt` catalogue. Flip the language in Settings
-  and the whole app recomposes without an Activity restart.
-- **Search in files / Quick open / Go to line**: three new
-  editor-flow shortcuts accessible from both the home screen's
-  top bar and the editor's top bar.
-- **Hidden files + Sort by**: two new preferences that affect the
-  file explorer's rendering.
-- **Configurable live preview**: a toggle + delay slider, plus a
-  lightning-bolt icon on the preview's top bar for an instant flip.
+## Fixes & changes since v0.0.4
+
+### Critical bugs fixed
+
+- **`Strings.applyMode` non-exhaustive `when`** — the v0.0.4 function
+  was missing the `SYSTEM` branch, which would have failed to compile
+  if any code had called it. v0.0.5 makes the function exhaustive.
+- **Preview: HTML/CSS/JS no longer fails to "run completely"** —
+  viewport meta tag injection, JavaScript console capture, proper
+  `<base>` handling, link-click interception, resource error capture.
+- **Preview: `inlineCompanionAssets` `ifBlank` bug** — fixed.
+- **GitHub Actions: hardcoded "v0.0.3" release notes** — release
+  notes now come from `CHANGELOG.md`.
+- **GitHub Actions: `workflow_dispatch` default** — updated to
+  `v0.0.5`.
+- **GitHub Actions: missing v3 signing** — release APKs are now
+  v1+v2+v3 signed.
+- **GitHub Actions: `setup-android` missing platform-tools** — added.
+- **Localisation: hardcoded "Create"/"Cancel"** — `NewNameDialog` now
+  routes through `Strings.get`.
+- **Gutter scroll sync** — the v0.0.4 magic density multiplier was
+  wrong on most devices. v0.0.5 uses `LocalDensity` properly.
 
 ### New features
 
-- **`Strings.kt`** — centralised i18n catalogue with EN + VN.
-- **`SearchInFilesScreen`** — workspace-wide text search.
-- **`QuickOpenScreen`** — VS Code "Ctrl+P" style file picker.
-- **`FileUtils.duplicate`** + **`FileUtils.searchInFiles`** — pure
-  utility functions reused by the repository layer.
-- **`FileActionsDialog`** — long-press context menu on every file /
-  folder with Rename / Delete / Duplicate / New file here /
-  New folder here.
-- **`LanguageMode`** + **`SortBy`** + **`showHiddenFiles`** +
-  **`livePreview`** + **`previewDelayMs`** prefs in
-  `SettingsRepository`.
+- Bracket auto-completion.
+- Live Markdown preview.
+- JavaScript console overlay.
+- Comment toggle.
+- Editor status bar.
+- Recent files row.
+- Share file / Share HTML / Open in browser.
+- Desktop / mobile viewport toggle.
+- New CI workflow + dynamic release notes.
 
 ## Tech stack
 
 ViperCode is built with the latest stable versions of every dependency.
-The stack is deliberately conservative — no experimental frameworks,
-no preview-quality libraries — to keep the upgrade path smooth.
 
 | Layer              | Technology                                     | Version        |
 |--------------------|------------------------------------------------|----------------|
@@ -242,16 +230,20 @@ ViperCode/
 │   │   │   │                              # SyntaxHighlighter, SyntaxHints
 │   │   │   ├── data/model/               # FileNode, EditorTab
 │   │   │   ├── data/repo/                # FileRepository
-│   │   │   ├── data/prefs/               # SettingsRepository (DataStore)
+│   │   │   ├── data/prefs/               # SettingsRepository (DataStore),
+│   │   │   │                              # RecentFiles
 │   │   │   └── util/                     # LanguageDetector, FileUtils,
-│   │   │                                  # Strings (i18n)
+│   │   │                                  # Strings (i18n),
+│   │   │                                  # MarkdownRenderer
 │   │   └── res/                         # Launcher icons, themes, strings, XML config
 │   ├── build.gradle.kts
 │   └── proguard-rules.pro
 ├── gradle/
 │   ├── libs.versions.toml                # Centralised version catalog
 │   └── wrapper/                          # Gradle wrapper
+├── .github/workflows/                    # ci.yml + build-release-apk.yml
 ├── logoide.png                           # Original logo source
+├── CHANGELOG.md                          # Release notes source
 ├── build.gradle.kts
 ├── settings.gradle.kts
 └── README.md
@@ -299,16 +291,18 @@ The v0.0.x line focuses on the editing experience:
 
 - **v0.0.1** — Foundation: file explorer, multi-tab editor, syntax
   highlighting for 30+ languages, Material 3 theming, settings.
-- **v0.0.2** — Offline local workspace, auto-save, search & replace,
-  robust auto-indent, crash fixes.
-- **v0.0.3** — Live HTML/CSS/JS preview, Find & Replace upgrade
-  (regex + case toggle + find-next), syntax hints (bracket matching +
-  unbalanced-bracket underlines), FileExplorer virtualization,
-  caret-persistence across tab switches, GitHub Action auto-build.
-- **v0.0.4** — Vietnamese language, massive editor + preview
-  performance rewrite, file-extension duplication fix, folder context
-  menu, Search-in-files, Quick-open, Go-to-line, Duplicate file,
+- **v0.0.2** — Offline-first, auto-save, search & replace, robust
+  auto-indent, crash fixes.
+- **v0.0.3** — Live HTML/CSS/JS preview, Find & Replace upgrade,
+  syntax hints, FileExplorer virtualization, caret-persistence,
+  GitHub Action auto-build.
+- **v0.0.4** — Vietnamese language, editor + preview performance
+  rewrite, file-extension duplication fix, folder context menu,
+  Search-in-files, Quick-open, Go-to-line, Duplicate file,
   Hidden files toggle, Sort by, Configurable live preview.
+- **v0.0.5** — Preview rewrite (viewport, console, link handling),
+  bracket auto-completion, Markdown preview, comment toggle, recent
+  files, share, status bar, new CI workflow, dynamic release notes.
 - **v0.1.0** — Integrated terminal (Termux-compatible), LSP bridge for
   Kotlin/Java.
 
@@ -321,3 +315,4 @@ non-trivial change.
 ## License
 
 [MIT](./LICENSE) — © 2026 hieulouisdev
+

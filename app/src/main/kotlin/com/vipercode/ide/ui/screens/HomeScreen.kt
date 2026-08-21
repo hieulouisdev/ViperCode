@@ -4,8 +4,9 @@ import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -13,13 +14,19 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.CreateNewFolder
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.DriveFileRenameOutline
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.FolderOpen
@@ -42,6 +49,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -54,11 +62,15 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.PopupProperties
 import com.vipercode.ide.data.model.FileNode
+import com.vipercode.ide.data.prefs.RecentFiles
 import com.vipercode.ide.data.prefs.SettingsRepository
 import com.vipercode.ide.data.prefs.SettingsRepository.SortBy
 import com.vipercode.ide.data.repo.FileRepository
@@ -110,6 +122,9 @@ fun HomeScreen(
         .collectAsState(initial = SettingsRepository.showHiddenFiles.default)
     val sortBy by SettingsRepository.sortBy.flow
         .collectAsState(initial = SettingsRepository.sortBy.default)
+
+    // v0.0.5 — recent files list.
+    val recentUris by RecentFiles.uris.collectAsState()
 
     var expanded by remember { mutableStateOf<Set<Uri>>(emptySet()) }
     var menuOpen by remember { mutableStateOf(false) }
@@ -336,7 +351,22 @@ fun HomeScreen(
             }
         },
     ) { padding ->
-        Box(modifier = Modifier.fillMaxSize().padding(padding)) {
+        Column(modifier = Modifier.fillMaxSize().padding(padding)) {
+            // v0.0.5 — Recent files row.
+            if (recentUris.isNotEmpty()) {
+                RecentFilesRow(
+                    uris = recentUris,
+                    s = s,
+                    onOpen = { uri ->
+                        scope.launch {
+                            val tab = repo.openFile(uri)
+                            if (tab != null) onOpenFile(tab.id)
+                        }
+                    },
+                    onClear = { RecentFiles.clear() },
+                )
+                HorizontalDivider()
+            }
             FileExplorer(
                 root = openFolder,
                 children = filteredTree,
@@ -363,6 +393,7 @@ fun HomeScreen(
         NewNameDialog(
             title = s.dialogNewFileTitle,
             hint = s.dialogNewFileHint,
+            s = s,
             onConfirm = { name ->
                 newFileDialog = null
                 if (name.isNotBlank()) {
@@ -382,6 +413,7 @@ fun HomeScreen(
         NewNameDialog(
             title = s.dialogNewFolderTitle,
             hint = s.dialogNewFolderHint,
+            s = s,
             onConfirm = { name ->
                 newFolderDialog = null
                 if (name.isNotBlank()) {
@@ -439,10 +471,87 @@ fun HomeScreen(
 /** Carries the target parent URI through the new-file / new-folder dialog. */
 private data class NewTarget(val parentUri: Uri)
 
+/**
+ * v0.0.5 — horizontal "Recent files" row shown above the file tree.
+ *
+ * Tapping a chip re-opens the file in the editor. Long-pressing the
+ * row's title area clears the list.
+ */
+@Composable
+private fun RecentFilesRow(
+    uris: List<Uri>,
+    s: Strings.T,
+    onOpen: (Uri) -> Unit,
+    onClear: () -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 8.dp, vertical = 4.dp),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Text(
+                text = s.homeRecent,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.primary,
+            )
+            IconButton(onClick = onClear) {
+                Icon(
+                    imageVector = Icons.Filled.Delete,
+                    contentDescription = s.homeClearRecent,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(16.dp),
+                )
+            }
+        }
+        LazyRow(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp),
+        ) {
+            items(uris, key = { it.toString() }) { uri ->
+                val name = uri.lastPathSegment ?: uri.toString()
+                Surface(
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+                    shape = RoundedCornerShape(8.dp),
+                    modifier = Modifier.widthIn(max = 160.dp),
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .clickable { onOpen(uri) }
+                            .padding(horizontal = 10.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Description,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(16.dp),
+                        )
+                        Spacer(Modifier.width(6.dp))
+                        Text(
+                            text = name,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
 @Composable
 private fun NewNameDialog(
     title: String,
     hint: String,
+    s: Strings.T,
     onConfirm: (String) -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -459,10 +568,10 @@ private fun NewNameDialog(
             )
         },
         confirmButton = {
-            TextButton(onClick = { onConfirm(name) }) { Text("Create") }
+            TextButton(onClick = { onConfirm(name) }) { Text(s.dialogCreate) }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
+            TextButton(onClick = onDismiss) { Text(s.dialogCancel) }
         },
     )
 }

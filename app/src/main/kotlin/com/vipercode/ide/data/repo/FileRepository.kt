@@ -4,6 +4,7 @@ import android.content.Context
 import android.net.Uri
 import com.vipercode.ide.data.model.EditorTab
 import com.vipercode.ide.data.model.FileNode
+import com.vipercode.ide.data.prefs.RecentFiles
 import com.vipercode.ide.data.prefs.SettingsRepository
 import com.vipercode.ide.util.FileUtils
 import com.vipercode.ide.util.LanguageDetector
@@ -87,6 +88,8 @@ class FileRepository(private val appContext: Context) {
         // Reuse existing tab if already open.
         _tabs.value.firstOrNull { it.uri == uri }?.let { existing ->
             _activeTabId.value = existing.id
+            // v0.0.5 — track recent files even on tab re-activation.
+            RecentFiles.add(uri)
             return@withContext existing
         }
         val doc = FileUtils.resolve(appContext, uri) ?: return@withContext null
@@ -110,6 +113,8 @@ class FileRepository(private val appContext: Context) {
         )
         _tabs.update { it + tab }
         _activeTabId.value = tab.id
+        // v0.0.5 — add the file to the recent-files list.
+        RecentFiles.add(uri)
         tab
     }
 

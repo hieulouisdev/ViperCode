@@ -69,6 +69,13 @@ object SettingsRepository {
     val livePreview = Pref(Boolean::class.javaObjectType, "live_preview_auto_refresh", true)
     val previewDelayMs = Pref(Int::class.javaObjectType, "preview_delay_ms", 800)
 
+    // v0.0.5 — new editor preferences.
+    val autoCloseBrackets = Pref(Boolean::class.javaObjectType, "auto_close_brackets", true)
+    val showStatusBar = Pref(Boolean::class.javaObjectType, "show_status_bar", true)
+
+    // v0.0.5 — recent files list (serialised as \n-separated URIs).
+    val recentFiles = Pref(String::class.java, "recent_files", "")
+
     fun init(context: Context) {
         ctx = context.applicationContext
     }
