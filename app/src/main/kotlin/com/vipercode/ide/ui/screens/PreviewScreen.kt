@@ -414,7 +414,7 @@ fun PreviewScreen(
                                         ConsoleMessage.MessageLevel.ERROR -> ConsoleLevel.ERROR
                                         ConsoleMessage.MessageLevel.WARNING -> ConsoleLevel.WARN
                                         ConsoleMessage.MessageLevel.DEBUG -> ConsoleLevel.DEBUG
-                                        ConsoleMessage.MessageLevel.INFO -> ConsoleLevel.INFO
+                                        ConsoleMessage.MessageLevel.TIP -> ConsoleLevel.INFO
                                         else -> ConsoleLevel.LOG
                                     }
                                     consoleMessages.add(

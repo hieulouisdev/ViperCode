@@ -12,6 +12,8 @@ import java.io.InputStreamReader
 import java.io.OutputStreamWriter
 import java.nio.charset.Charset
 import java.nio.charset.StandardCharsets
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 /**
  * Pure-Java bridge between Android storage layers and the rest of the app.
@@ -246,9 +248,11 @@ object FileUtils {
                 val hasExt = dotIdx > 0 && dotIdx < copyName.length - 1
                 if (hasExt) "application/octet-stream" else (src.type ?: "application/octet-stream")
             }
-            val newDoc = if (src.isDirectory) parent.createDirectory(copyName)
-            else parent.createFile(mime ?: "application/octet-stream", copyName)
-                ?: return null
+            val newDoc = if (src.isDirectory) {
+                parent.createDirectory(copyName) ?: return null
+            } else {
+                parent.createFile(mime ?: "application/octet-stream", copyName) ?: return null
+            }
             if (src.isDirectory) copyTree(context, src, newDoc)
             else copyFileContents(context, src, newDoc)
             newDoc.toFileNode(parent = parentUri)
@@ -262,13 +266,13 @@ object FileUtils {
         for (child in src.listFiles()) {
             val childName = child.name ?: continue
             val target = if (child.isDirectory) {
-                dst.createDirectory(childName)
+                dst.createDirectory(childName) ?: continue
             } else {
                 val dotIdx = childName.lastIndexOf('.')
                 val hasExt = dotIdx > 0 && dotIdx < childName.length - 1
                 val mime = if (hasExt) "application/octet-stream" else (child.type ?: "application/octet-stream")
-                dst.createFile(mime, childName)
-            } ?: continue
+                dst.createFile(mime, childName) ?: continue
+            }
             if (child.isDirectory) copyTree(context, child, target)
             else copyFileContents(context, child, target)
         }
@@ -339,7 +343,13 @@ object FileUtils {
                 val len = child.length()
                 if (len <= 0 || len > MAX_FILE_BYTES) continue
                 // Match by content (expensive).
-                val text = runCatching { readText(context, child.uri) }.getOrNull() ?: continue
+                val text = try {
+                    readText(context, child.uri)
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    throw e
+                } catch (_: Throwable) {
+                    null
+                } ?: continue
                 val idx = text.lowercase().indexOf(qLower)
                 if (idx >= 0) {
                     val (line, col) = lineColForOffset(text, idx)
