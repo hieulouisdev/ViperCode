@@ -20,6 +20,7 @@ import androidx.compose.material.icons.filled.AutoFixHigh
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Comment
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Search
@@ -206,13 +207,22 @@ fun EditorScreen(
                             overflow = TextOverflow.Ellipsis,
                         )
                         activeTab?.let { tab ->
+                            // v0.0.6 — cap the subtitle width and ellipsize
+                            // so a long language name + encoding + "read-only"
+                            // no longer overflows the top bar on narrow phones.
                             Text(
-                                text = tab.language.displayName + " • ${tab.encoding}" +
-                                    if (tab.readOnly) " • ${s.editorReadOnly}" else "",
+                                text = buildString {
+                                    append(tab.language.displayName)
+                                    append(" • ")
+                                    append(tab.encoding)
+                                    if (tab.readOnly) append(" • ${s.editorReadOnly}")
+                                },
                                 style = MaterialTheme.typography.labelSmall,
                                 fontFamily = FontFamily.Monospace,
                                 fontSize = 11.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
                             )
                         }
                     }
@@ -223,41 +233,15 @@ fun EditorScreen(
                     }
                 },
                 actions = {
+                    // v0.0.6 — condensed top bar so 8+ icon buttons no
+                    // longer overflow horizontally on narrow phones. The
+                    // primary actions (Search, Save, Preview) stay in the
+                    // bar; secondary actions (Go-to-line, Comment toggle,
+                    // Quick open, Search in files, Share) move into an
+                    // overflow menu.
+                    var moreOpen by remember { mutableStateOf(false) }
                     IconButton(onClick = { showSearch = !showSearch }) {
                         Icon(Icons.Filled.Search, contentDescription = s.editorSearch)
-                    }
-                    IconButton(onClick = { showGoToLine = true }) {
-                        Icon(Icons.AutoMirrored.Filled.MenuBook, contentDescription = s.editorGoToLine)
-                    }
-                    // v0.0.5 — comment toggle.
-                    IconButton(onClick = { commentToggleToken++ }) {
-                        Icon(Icons.Filled.Comment, contentDescription = s.editorCommentToggle)
-                    }
-                    IconButton(onClick = onOpenQuickOpen) {
-                        Icon(Icons.Filled.Bolt, contentDescription = s.editorQuickOpen)
-                    }
-                    IconButton(onClick = onOpenSearchInFiles) {
-                        Icon(Icons.Filled.Search, contentDescription = s.editorSearchInFiles)
-                    }
-                    // v0.0.5 — share file content via Android share sheet.
-                    IconButton(onClick = {
-                        val tab = activeTab
-                        if (tab == null) {
-                            scope.launch { snackbarHostState.showSnackbar(s.editorShareFailed) }
-                            return@IconButton
-                        }
-                        val send = Intent(Intent.ACTION_SEND).apply {
-                            type = "text/plain"
-                            putExtra(Intent.EXTRA_TEXT, tab.content)
-                            putExtra(Intent.EXTRA_SUBJECT, tab.name)
-                        }
-                        runCatching {
-                            context.startActivity(Intent.createChooser(send, s.editorShare))
-                        }.onFailure {
-                            scope.launch { snackbarHostState.showSnackbar(s.editorShareFailed) }
-                        }
-                    }) {
-                        Icon(Icons.Filled.Share, contentDescription = s.editorShare)
                     }
                     if ((isHtmlTab || isMarkdownTab) && activeTab != null) {
                         IconButton(onClick = { onOpenPreview(activeTab.id) }) {
@@ -273,6 +257,57 @@ fun EditorScreen(
                         }
                     }) {
                         Icon(Icons.Filled.Save, contentDescription = s.editorSave)
+                    }
+                    IconButton(onClick = { moreOpen = true }) {
+                        Icon(Icons.Filled.MoreVert, contentDescription = "More")
+                    }
+                    androidx.compose.material3.DropdownMenu(
+                        expanded = moreOpen,
+                        onDismissRequest = { moreOpen = false },
+                    ) {
+                        androidx.compose.material3.DropdownMenuItem(
+                            text = { Text(s.editorGoToLine) },
+                            onClick = { moreOpen = false; showGoToLine = true },
+                            leadingIcon = { Icon(Icons.AutoMirrored.Filled.MenuBook, null) },
+                        )
+                        androidx.compose.material3.DropdownMenuItem(
+                            text = { Text(s.editorCommentToggle) },
+                            onClick = { moreOpen = false; commentToggleToken++ },
+                            leadingIcon = { Icon(Icons.Filled.Comment, null) },
+                        )
+                        androidx.compose.material3.DropdownMenuItem(
+                            text = { Text(s.editorQuickOpen) },
+                            onClick = { moreOpen = false; onOpenQuickOpen() },
+                            leadingIcon = { Icon(Icons.Filled.Bolt, null) },
+                        )
+                        androidx.compose.material3.DropdownMenuItem(
+                            text = { Text(s.editorSearchInFiles) },
+                            onClick = { moreOpen = false; onOpenSearchInFiles() },
+                            leadingIcon = { Icon(Icons.Filled.Search, null) },
+                        )
+                        androidx.compose.material3.HorizontalDivider()
+                        androidx.compose.material3.DropdownMenuItem(
+                            text = { Text(s.editorShare) },
+                            onClick = {
+                                moreOpen = false
+                                val tab = activeTab
+                                if (tab == null) {
+                                    scope.launch { snackbarHostState.showSnackbar(s.editorShareFailed) }
+                                    return@DropdownMenuItem
+                                }
+                                val send = Intent(Intent.ACTION_SEND).apply {
+                                    type = "text/plain"
+                                    putExtra(Intent.EXTRA_TEXT, tab.content)
+                                    putExtra(Intent.EXTRA_SUBJECT, tab.name)
+                                }
+                                runCatching {
+                                    context.startActivity(Intent.createChooser(send, s.editorShare))
+                                }.onFailure {
+                                    scope.launch { snackbarHostState.showSnackbar(s.editorShareFailed) }
+                                }
+                            },
+                            leadingIcon = { Icon(Icons.Filled.Share, null) },
+                        )
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(

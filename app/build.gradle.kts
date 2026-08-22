@@ -14,8 +14,8 @@ android {
         applicationId = "com.vipercode.ide"
         minSdk = 25
         targetSdk = 35
-        versionCode = 5
-        versionName = "0.0.5"
+        versionCode = 6
+        versionName = "0.0.6"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {

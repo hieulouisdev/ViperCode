@@ -5,6 +5,7 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.os.Build
 import com.vipercode.ide.data.prefs.RecentFiles
+import com.vipercode.ide.data.prefs.RecentFolders
 import com.vipercode.ide.data.prefs.SettingsRepository
 import com.vipercode.ide.util.Strings
 import kotlinx.coroutines.CoroutineScope
@@ -56,6 +57,8 @@ class ViperCodeApp : Application() {
 
             // v0.0.5 — load the persisted recent-files list.
             RecentFiles.load()
+            // v0.0.6 — load the persisted recent-folders list.
+            RecentFolders.load()
         }
         registerNotificationChannel()
     }

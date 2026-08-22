@@ -2,6 +2,7 @@ package com.vipercode.ide.util
 
 import android.content.Context
 import android.net.Uri
+import android.provider.DocumentsContract
 import com.vipercode.ide.data.model.FileNode
 import com.vipercode.ide.data.model.toFileNode
 import androidx.documentfile.provider.DocumentFile
@@ -12,6 +13,8 @@ import java.io.InputStreamReader
 import java.io.OutputStreamWriter
 import java.nio.charset.Charset
 import java.nio.charset.StandardCharsets
+import java.util.zip.ZipEntry
+import java.util.zip.ZipInputStream
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -40,6 +43,15 @@ object FileUtils {
     const val LOCAL_WORKSPACE_DIR = "workspace"
 
     /**
+     * Name of the directory that holds extracted ZIP projects. v0.0.6.
+     *
+     * Each uploaded ZIP gets its own subfolder under this root, named after
+     * the ZIP's base name (without the `.zip` extension). Users can switch
+     * between workspace and any extracted project via "Switch folder".
+     */
+    const val LOCAL_PROJECTS_DIR = "projects"
+
+    /**
      * Returns a [File] pointing at the app-private workspace directory on
      * external storage. Creates the directory if it does not yet exist.
      *
@@ -55,10 +67,39 @@ object FileUtils {
         return ws
     }
 
-    /** True if [uri] points inside the local workspace tree. */
+    /**
+     * Returns the directory that holds all extracted ZIP projects. v0.0.6.
+     *
+     * Each uploaded ZIP is extracted into a subfolder named after the ZIP's
+     * base name (with a numeric suffix if a folder with the same name
+     * already exists, so re-uploading the same ZIP never overwrites the
+     * previously extracted copy).
+     */
+    fun localProjectsRoot(context: Context): File {
+        val base = context.getExternalFilesDir(null)
+            ?: context.filesDir
+        val dir = File(base, LOCAL_PROJECTS_DIR)
+        if (!dir.exists()) dir.mkdirs()
+        return dir
+    }
+
+    /** Lists all extracted project folders. v0.0.6. */
+    fun listExtractedProjects(context: Context): List<File> {
+        val root = localProjectsRoot(context)
+        return root.listFiles { f -> f.isDirectory }?.sortedBy { it.name }
+            ?: emptyList()
+    }
+
+    /**
+     * True if [uri] points inside the local workspace OR the extracted
+     * projects tree.
+     */
     fun isLocalWorkspaceUri(uri: Uri): Boolean {
-        return uri.toString().startsWith("file://") &&
-            uri.path?.contains("/$LOCAL_WORKSPACE_DIR/") == true
+        val s = uri.toString()
+        if (!s.startsWith("file://")) return false
+        val path = uri.path ?: return false
+        return path.contains("/$LOCAL_WORKSPACE_DIR/") ||
+            path.contains("/$LOCAL_PROJECTS_DIR/")
     }
 
     /**
@@ -432,4 +473,129 @@ object FileUtils {
     }
 
     val DefaultCharset: Charset = StandardCharsets.UTF_8
+
+    /**
+     * Builds an initial URI for [androidx.activity.result.contract.ActivityResultContracts.OpenDocumentTree]
+     * that points at the device's primary external storage root. v0.0.6.
+     *
+     * The SAF picker remembers the last-used location across launches, so
+     * if the user previously picked a folder inside Termux (or any other
+     * storage provider), subsequent invocations of
+     * `OpenDocumentTree.launch(null)` reopen that same root — the user
+     * sees "only Termux" and reports that the picker "doesn't show the
+     * rest of the device". Passing this URI as the initial location
+     * forces the picker to start at the primary shared storage root so
+     * the user can navigate to any folder on the device from there.
+     *
+     * Returns null on devices / ROMs where the ExternalStorageProvider
+     * root URI can't be built (shouldn't happen on any stock Android
+     * 7.1+ device, but we still guard).
+     */
+    fun primaryStorageRootUri(): Uri? = runCatching {
+        DocumentsContract.buildRootUri(
+            "com.android.externalstorage.documents",
+            "primary",
+        )
+    }.getOrNull()
+
+    /**
+     * Extracts a ZIP archive picked via SAF into a new subfolder under
+     * [localProjectsRoot]. Returns the directory the archive was
+     * extracted to (so the caller can switch the open folder to it).
+     *
+     * v0.0.6.
+     *
+     * Behaviour:
+     *  - The new folder is named after the ZIP's base name (without the
+     *    `.zip` extension). A numeric suffix is appended if a folder with
+     *    the same name already exists, so re-uploading the same ZIP
+     *    never overwrites the previously extracted copy.
+     *  - Path traversal entries (`../`, absolute paths starting with
+     *    `/`) are skipped — this is the standard ZipSlip mitigation.
+     *  - Directory entries inside the ZIP are created as real directories
+     *    (with `mkdirs()`), even when they have zero children.
+     *  - Files inside the ZIP replace any existing file at the same path
+     *    inside the destination folder.
+     *  - The ZIP is streamed from the SAF URI via [ContentResolver];
+     *    no intermediate copy on disk is required.
+     */
+    suspend fun extractZipToProjects(
+        context: Context,
+        zipUri: Uri,
+        suggestedName: String? = null,
+    ): File = withContext(Dispatchers.IO) {
+        val baseName = (suggestedName ?: displayName(context, zipUri) ?: "project")
+            .substringBeforeLast('.')
+            .replace(Regex("[^A-Za-z0-9._-]"), "_")
+            .ifBlank { "project" }
+        val projectsRoot = localProjectsRoot(context)
+        val destDir = uniqueDirectory(projectsRoot, baseName)
+        destDir.mkdirs()
+
+        val resolver = context.contentResolver
+        resolver.openInputStream(zipUri).use { input ->
+            if (input == null) throw IOException("Cannot open ZIP input stream")
+            ZipInputStream(input).use { zis ->
+                var entry: ZipEntry? = zis.nextEntry
+                while (entry != null) {
+                    val name = entry.name
+                    // ZipSlip mitigation: refuse any entry that tries to
+                    // escape the destination root.
+                    val target = File(destDir, name).canonicalFile
+                    val destCanon = destDir.canonicalFile
+                    if (!target.path.startsWith(destCanon.path + File.separator) &&
+                        target != destCanon
+                    ) {
+                        // Skip dangerous entry.
+                        zis.closeEntry()
+                        entry = zis.nextEntry
+                        continue
+                    }
+                    if (entry.isDirectory) {
+                        target.mkdirs()
+                    } else {
+                        target.parentFile?.mkdirs()
+                        target.outputStream().use { os ->
+                            val buf = ByteArray(64 * 1024)
+                            while (true) {
+                                val r = zis.read(buf)
+                                if (r <= 0) break
+                                os.write(buf, 0, r)
+                            }
+                        }
+                    }
+                    zis.closeEntry()
+                    entry = zis.nextEntry
+                }
+            }
+        }
+        destDir
+    }
+
+    /** Returns the display name of a SAF URI, or null if it can't be resolved. */
+    private fun displayName(context: Context, uri: Uri): String? {
+        return runCatching {
+            val cursor = context.contentResolver.query(
+                uri,
+                arrayOf(android.provider.OpenableColumns.DISPLAY_NAME),
+                null, null, null,
+            )
+            cursor?.use {
+                if (it.moveToFirst()) {
+                    val idx = it.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+                    if (idx >= 0) it.getString(idx) else null
+                } else null
+            }
+        }.getOrNull() ?: uri.lastPathSegment
+    }
+
+    /** Returns a non-existent directory name under [parent] based on [baseName]. */
+    private fun uniqueDirectory(parent: File, baseName: String): File {
+        if (!File(parent, baseName).exists()) return File(parent, baseName)
+        for (i in 1..1000) {
+            val candidate = File(parent, "$baseName ($i)")
+            if (!candidate.exists()) return candidate
+        }
+        return File(parent, "$baseName (${java.util.UUID.randomUUID().toString().take(8)})")
+    }
 }

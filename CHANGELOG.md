@@ -5,6 +5,88 @@ All notable changes to ViperCode are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v0.0.6] - 2026-08-22
+
+### Added
+- **Upload ZIP to extract** — pick a `.zip` archive from anywhere on
+  the device (SAF picker) and ViperCode extracts it into a new
+  subfolder under `projects/` (separate from the default `workspace/`
+  folder). The extracted project is opened automatically as the
+  current folder so you can start editing immediately. Re-uploading
+  the same ZIP never overwrites the previously extracted copy (a
+  numeric suffix is appended). Path-traversal entries are skipped
+  (ZipSlip mitigation).
+- **Switch folder** bottom sheet — a new icon in the top bar opens
+  a sheet that lists the local workspace, every extracted project,
+  and all recently-opened SAF folders in one place. Jump between
+  them without re-opening the SAF picker every time.
+- **Browse device storage** menu item — launches the SAF picker
+  with an explicit initial URI pointing at the device's primary
+  shared storage root. The plain "Open folder (SAF)" item keeps
+  the old behaviour (reopens the last-used location) for users
+  who actually want that.
+- **Recent folders list** — every folder the user opens (workspace,
+  extracted project, or SAF folder) is added to a recent list
+  persisted across launches. The Switch-folder sheet consumes this
+  list.
+- **Empty-folder hint** — when the open folder is non-null but
+  contains no files (e.g. a freshly-created local workspace), the
+  explorer now shows an explicit "This folder is empty — use the +
+  button to create a new file" hint instead of a blank tree.
+- **Toast-style feedback** — extraction progress, success and
+  failure are now surfaced via a snackbar-style overlay so the
+  user always knows what happened.
+- **Extraction spinner** — the FAB turns into a progress spinner
+  while a ZIP is being extracted so the user gets visible feedback
+  that the operation is in progress.
+
+### Changed
+- **Editor top bar condensed** — the 8+ icon buttons that used to
+  overflow horizontally on narrow phones have been reorganised:
+  Search, Save and Live-preview stay in the bar; Go-to-line,
+  Comment toggle, Quick open, Search in files and Share moved
+  into a "More" overflow menu.
+- **Settings chip rows now wrap** — Theme, Language, Sort and Font
+  family selectors used `Row` (no wrap), so on small screens a
+  long chip label could push every subsequent chip off-screen.
+  They now use `FlowRow` so chips wrap to the next line.
+- **About screen** — tagline is now capped to a single line with
+  ellipsis, BulletList items wrap to the next line, and InfoLine
+  values ellipsize so long URLs no longer push labels off-screen.
+- **Editor subtitle** — language/encoding/read-only string is now
+  ellipsized to a single line so it never overflows the top bar.
+- **Home top bar title** — the redundant tagline subtitle
+  ("Đẳng cấp hoàn hảo" in Vietnamese, "The class of perfection"
+  in English) has been removed so the title row no longer
+  overflows on narrow screens. The tagline still lives on the
+  splash and About screens where there's plenty of horizontal
+  room.
+
+### Fixed
+- **"Dùng thư mục cục bộ" / "Use local workspace" did nothing** —
+  the v0.0.5 click handler set `lastFolderUri` and called
+  `openFolder`, but the initial `LaunchedEffect(Unit)` had already
+  consumed the initial open so the new state never updated for the
+  freshly-tapped directory. v0.0.6 force-refreshes the directory
+  after the tap, also flips the `useLocalWorkspace` preference to
+  `true` so the workspace persists on next launch, and adds the
+  folder to the recent-folders list so it shows up in the
+  switch-folder sheet.
+- **"Mở thư mục" / "Open folder" only opened the Termux area** —
+  the SAF picker remembers the last-used location across launches,
+  so on devices where Termux was the most recently-used provider
+  the user only saw Termux storage and reported "the picker doesn't
+  show the rest of the device". v0.0.6 adds an explicit
+  "Browse device storage" menu item that launches the SAF picker
+  with an initial URI pointing at the device's primary shared
+  storage root, so the picker starts at the device root and the
+  user can navigate to any folder from there.
+- **File explorer empty-state strings were hardcoded English** —
+  "No folder opened" and "Pick a folder to start coding" were
+  never routed through the i18n catalogue. v0.0.6 routes them
+  through `Strings.get()` so the empty state honours the user's
+  language preference.
+
 ## [v0.0.5] - 2026-08-22
 
 ### Added

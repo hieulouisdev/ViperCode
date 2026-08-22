@@ -76,6 +76,12 @@ object SettingsRepository {
     // v0.0.5 — recent files list (serialised as \n-separated URIs).
     val recentFiles = Pref(String::class.java, "recent_files", "")
 
+    // v0.0.6 — recent folders list (serialised as \n-separated URIs).
+    // Used by the "Switch folder" sheet on the home screen so the user
+    // can jump between the workspace, extracted projects and any SAF
+    // folder they previously picked without re-opening the SAF picker.
+    val recentFolders = Pref(String::class.java, "recent_folders", "")
+
     fun init(context: Context) {
         ctx = context.applicationContext
     }

@@ -6,6 +6,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -18,8 +19,11 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.ContentCopy
@@ -29,15 +33,20 @@ import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.DriveFileRenameOutline
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.FolderOpen
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Sort
+import androidx.compose.material.icons.filled.SwapHoriz
+import androidx.compose.material.icons.filled.Upload
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material.icons.filled.Workspaces
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -46,6 +55,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
@@ -53,6 +63,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -63,13 +74,13 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.PopupProperties
 import com.vipercode.ide.data.model.FileNode
 import com.vipercode.ide.data.prefs.RecentFiles
+import com.vipercode.ide.data.prefs.RecentFolders
 import com.vipercode.ide.data.prefs.SettingsRepository
 import com.vipercode.ide.data.prefs.SettingsRepository.SortBy
 import com.vipercode.ide.data.repo.FileRepository
@@ -82,19 +93,38 @@ import kotlinx.coroutines.launch
 /**
  * Home / Workspace screen.
  *
- * v0.0.4 changes:
- *  - All strings routed through [Strings.get] so the screen flips to
- *    Vietnamese when the user picks Tiếng Việt in Settings.
- *  - Long-press on a folder opens a context menu with "New file here",
- *    "New folder here", "Rename", "Duplicate", "Delete" — fixes the
- *    v0.0.3 complaint that the user couldn't create files inside a
- *    sub-folder (the FAB only ever created at the workspace root).
- *  - Newly-created folders are auto-added to the expanded set so the
- *    user can immediately see and "access" them.
- *  - Sort by Name / Size / Modified, and a hidden-files toggle, both
- *    driven by new Settings prefs.
- *  - Top-bar overflow menu exposes "Search in files" and "Quick open"
- *    shortcuts that hand off to the Editor screen.
+ * v0.0.6 changes:
+ *  - **Removed the tagline subtitle from the top bar** so the title row
+ *    no longer overflows on narrow screens ("workspace đẳng cấp hoàn hảo"
+ *    → just the folder name). The tagline still lives on the splash and
+ *    About screens where there's plenty of horizontal room.
+ *  - **"Upload ZIP"** menu item — picks a `.zip` via SAF, extracts it
+ *    into a new subfolder under `projects/`, and immediately switches
+ *    the open folder to the extracted project so the user can start
+ *    editing right away.
+ *  - **"Switch folder"** bottom sheet — lists the workspace, all
+ *    extracted projects, and every recently-opened SAF folder in one
+ *    place so the user can jump between them without re-opening the
+ *    SAF picker.
+ *  - **"Browse device storage"** menu item — launches the SAF picker
+ *    with an explicit initial URI pointing at the primary shared
+ *    storage root. The v0.0.5 `OpenDocumentTree.launch(null)` reopens
+ *    the last-used location, which on some devices (Termux, certain
+ *    OEM ROMs) is the app's private storage instead of the device's
+ *    shared storage. The explicit initial URI forces the picker to
+ *    start at the device root so the user can actually navigate the
+ *    whole device.
+ *  - **"Use local workspace"** fix — the local workspace is now
+ *    force-refreshed after the button is tapped (the v0.0.5 click
+ *    handler set `lastFolderUri` and called `openFolder`, but the
+ *    `LaunchedEffect(Unit)` had already consumed the initial open so
+ *    the state never updated for the new directory). Also flips the
+ *    `useLocalWorkspace` preference to `true` so the workspace
+ *    persists on next launch.
+ *  - The empty-state UI now shows an explicit hint ("This folder is
+ *    empty — use the + button to create a new file") so users
+ *    understand what to do when the local workspace has just been
+ *    created and contains nothing.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -124,6 +154,8 @@ fun HomeScreen(
 
     // v0.0.5 — recent files list.
     val recentUris by RecentFiles.uris.collectAsState()
+    // v0.0.6 — recent folders list (for the switch-folder sheet).
+    val recentFolderUris by RecentFolders.uris.collectAsState()
 
     var expanded by remember { mutableStateOf<Set<Uri>>(emptySet()) }
     var menuOpen by remember { mutableStateOf(false) }
@@ -131,6 +163,13 @@ fun HomeScreen(
     var newFileDialog by remember { mutableStateOf<NewTarget?>(null) }
     var newFolderDialog by remember { mutableStateOf<NewTarget?>(null) }
     var longPressTarget by remember { mutableStateOf<FileNode?>(null) }
+    // v0.0.6 — switch-folder sheet visibility.
+    var showSwitchFolder by remember { mutableStateOf(false) }
+    // v0.0.6 — extraction progress indicator.
+    var extractingZip by remember { mutableStateOf(false) }
+    // v0.0.6 — toast-like snackbar message (kept as a simple state so
+    // we don't have to thread a SnackbarHost through the whole tree).
+    var userMessage by remember { mutableStateOf<String?>(null) }
 
     // Restore the previous folder OR fall back to the local workspace.
     LaunchedEffect(Unit) {
@@ -144,6 +183,7 @@ fun HomeScreen(
                 ) {
                     repo.openFolder(uri)
                     expanded = expanded + uri
+                    RecentFolders.add(uri)
                     true
                 } else {
                     runCatching {
@@ -155,6 +195,7 @@ fun HomeScreen(
                     }
                     repo.openFolder(uri)
                     expanded = expanded + uri
+                    RecentFolders.add(uri)
                     true
                 }
             }.getOrDefault(false)
@@ -166,8 +207,23 @@ fun HomeScreen(
             SettingsRepository.lastFolderUri.set(uri.toString())
             repo.openFolder(uri)
             expanded = expanded + uri
+            RecentFolders.add(uri)
         }
     }
+
+    // Auto-clear the user-message toast after a short delay.
+    LaunchedEffect(userMessage) {
+        if (userMessage != null) {
+            kotlinx.coroutines.delay(2500)
+            userMessage = null
+        }
+    }
+
+    // v0.0.6 — explicit primary-storage root so the SAF picker starts
+    // at the device's primary shared storage (instead of reopening the
+    // last-used location, which on some devices points at Termux or
+    // the app's private storage).
+    val primaryRoot = remember { FileUtils.primaryStorageRootUri() }
 
     val folderPicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocumentTree(),
@@ -183,6 +239,33 @@ fun HomeScreen(
                 SettingsRepository.lastFolderUri.set(uri.toString())
                 repo.openFolder(uri)
                 expanded = expanded + uri
+                RecentFolders.add(uri)
+            }
+        }
+    }
+
+    // v0.0.6 — single-file picker used to pick a ZIP archive. We use
+    // OpenDocument() (instead of GetContent) because OpenDocument grants
+    // a persistable read permission we can use to stream the file
+    // straight into the ZipInputStream without an intermediate copy.
+    val zipPicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument(),
+    ) { uri: Uri? ->
+        if (uri != null) {
+            scope.launch {
+                extractingZip = true
+                val node = runCatching {
+                    repo.extractZipToProjects(uri)
+                }.getOrNull()
+                extractingZip = false
+                if (node != null) {
+                    SettingsRepository.lastFolderUri.set(node.uri.toString())
+                    RecentFolders.add(node.uri)
+                    expanded = setOf(node.uri)
+                    userMessage = s.homeZipExtracted.format(node.name)
+                } else {
+                    userMessage = s.homeZipExtractFailed
+                }
             }
         }
     }
@@ -214,17 +297,15 @@ fun HomeScreen(
         topBar = {
             TopAppBar(
                 title = {
-                    Column {
-                        Text(
-                            text = openFolder?.name ?: "ViperCode",
-                            style = MaterialTheme.typography.titleMedium,
-                        )
-                        Text(
-                            text = s.tagline,
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
+                    // v0.0.6 — title only, NO subtitle, so the bar never
+                    // overflows. The tagline is shown on the splash and
+                    // About screens where there's room.
+                    Text(
+                        text = openFolder?.name ?: "ViperCode",
+                        style = MaterialTheme.typography.titleMedium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
                 },
                 actions = {
                     IconButton(onClick = {
@@ -255,6 +336,10 @@ fun HomeScreen(
                     IconButton(onClick = onOpenQuickOpen) {
                         Icon(Icons.Filled.Bolt, contentDescription = s.editorQuickOpen)
                     }
+                    // v0.0.6 — Switch folder sheet shortcut.
+                    IconButton(onClick = { showSwitchFolder = true }) {
+                        Icon(Icons.Filled.SwapHoriz, contentDescription = s.homeSwitchFolder)
+                    }
                     IconButton(onClick = { menuOpen = true }) {
                         Icon(Icons.Filled.MoreVert, contentDescription = "Menu")
                     }
@@ -274,6 +359,20 @@ fun HomeScreen(
                             leadingIcon = { Icon(Icons.Filled.Info, null) },
                         )
                         HorizontalDivider()
+                        // v0.0.6 — explicit "Browse device storage" item that
+                        // launches the SAF picker with an initial URI pointing
+                        // at the primary shared storage root. The plain
+                        // "Open folder (SAF)" item below it keeps the old
+                        // behaviour (reopens the last-used location) for users
+                        // who actually want that.
+                        DropdownMenuItem(
+                            text = { Text(s.homeBrowseDevice) },
+                            onClick = {
+                                menuOpen = false
+                                folderPicker.launch(primaryRoot)
+                            },
+                            leadingIcon = { Icon(Icons.Filled.FolderOpen, null) },
+                        )
                         DropdownMenuItem(
                             text = { Text(s.homeOpenFolderSaf) },
                             onClick = {
@@ -283,18 +382,47 @@ fun HomeScreen(
                             leadingIcon = { Icon(Icons.Filled.FolderOpen, null) },
                         )
                         DropdownMenuItem(
+                            text = { Text(s.homeUploadZip) },
+                            onClick = {
+                                menuOpen = false
+                                zipPicker.launch(arrayOf(
+                                    "application/zip",
+                                    "application/x-zip-compressed",
+                                    "application/octet-stream",
+                                ))
+                            },
+                            leadingIcon = { Icon(Icons.Filled.Upload, null) },
+                        )
+                        DropdownMenuItem(
                             text = { Text(s.homeUseLocalWorkspace) },
                             onClick = {
                                 menuOpen = false
                                 val local = FileUtils.localWorkspaceRoot(context)
                                 val uri = Uri.fromFile(local)
                                 scope.launch {
+                                    // v0.0.6 — also flip the useLocalWorkspace
+                                    // pref so the workspace persists on next
+                                    // launch, force-refresh the directory so
+                                    // the tree actually updates, and add the
+                                    // folder to the recent-folders list so it
+                                    // shows up in the switch-folder sheet.
+                                    SettingsRepository.useLocalWorkspace.set(true)
                                     SettingsRepository.lastFolderUri.set(uri.toString())
                                     repo.openFolder(uri)
+                                    repo.refreshDirectory(uri)
                                     expanded = expanded + uri
+                                    RecentFolders.add(uri)
                                 }
                             },
                             leadingIcon = { Icon(Icons.Filled.Folder, null) },
+                        )
+                        DropdownMenuItem(
+                            text = { Text(s.homeSwitchFolder) },
+                            onClick = {
+                                menuOpen = false
+                                showSwitchFolder = true
+                            },
+                            leadingIcon = { Icon(Icons.Filled.SwapHoriz, null) },
                         )
                     }
                     DropdownMenu(
@@ -331,7 +459,21 @@ fun HomeScreen(
             )
         },
         floatingActionButton = {
-            if (openFolder != null) {
+            if (extractingZip) {
+                // v0.0.6 — extraction in progress, show a spinner instead
+                // of the FAB so the user gets visible feedback that
+                // something is happening.
+                FloatingActionButton(
+                    onClick = {},
+                    modifier = Modifier.padding(bottom = 8.dp),
+                ) {
+                    CircularProgressIndicator(
+                        color = MaterialTheme.colorScheme.onPrimary,
+                        strokeWidth = 2.dp,
+                        modifier = Modifier.size(24.dp),
+                    )
+                }
+            } else if (openFolder != null) {
                 Column {
                     FloatingActionButton(
                         onClick = { newFolderDialog = NewTarget(openFolder!!.uri) },
@@ -344,43 +486,98 @@ fun HomeScreen(
                     }
                 }
             } else {
-                FloatingActionButton(onClick = { folderPicker.launch(null) }) {
+                FloatingActionButton(onClick = { folderPicker.launch(primaryRoot) }) {
                     Icon(Icons.Filled.FolderOpen, contentDescription = s.homeOpenFolderSaf)
                 }
             }
         },
     ) { padding ->
-        Column(modifier = Modifier.fillMaxSize().padding(padding)) {
-            // v0.0.5 — Recent files row.
-            if (recentUris.isNotEmpty()) {
-                RecentFilesRow(
-                    uris = recentUris,
-                    s = s,
-                    onOpen = { uri ->
+        Box(modifier = Modifier.fillMaxSize().padding(padding)) {
+            Column(modifier = Modifier.fillMaxSize()) {
+                // v0.0.5 — Recent files row.
+                if (recentUris.isNotEmpty()) {
+                    RecentFilesRow(
+                        uris = recentUris,
+                        s = s,
+                        onOpen = { uri ->
+                            scope.launch {
+                                val tab = repo.openFile(uri)
+                                if (tab != null) onOpenFile(tab.id)
+                            }
+                        },
+                        onClear = { RecentFiles.clear() },
+                    )
+                    HorizontalDivider()
+                }
+                FileExplorer(
+                    root = openFolder,
+                    children = filteredTree,
+                    expanded = expanded,
+                    onToggleFolder = { uri ->
+                        expanded = if (uri in expanded) expanded - uri else expanded + uri
+                        scope.launch { repo.refreshDirectory(uri) }
+                    },
+                    onOpenFile = { node ->
                         scope.launch {
-                            val tab = repo.openFile(uri)
+                            val tab = repo.openFile(node.uri)
                             if (tab != null) onOpenFile(tab.id)
                         }
                     },
-                    onClear = { RecentFiles.clear() },
+                    onLongPress = { node -> longPressTarget = node },
                 )
-                HorizontalDivider()
             }
-            FileExplorer(
-                root = openFolder,
-                children = filteredTree,
-                expanded = expanded,
-                onToggleFolder = { uri ->
-                    expanded = if (uri in expanded) expanded - uri else expanded + uri
-                    scope.launch { repo.refreshDirectory(uri) }
-                },
-                onOpenFile = { node ->
+
+            // v0.0.6 — toast-like message overlay.
+            userMessage?.let { msg ->
+                Surface(
+                    color = MaterialTheme.colorScheme.inverseSurface,
+                    shape = RoundedCornerShape(8.dp),
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(16.dp),
+                ) {
+                    Text(
+                        text = msg,
+                        color = MaterialTheme.colorScheme.inverseOnSurface,
+                        style = MaterialTheme.typography.labelLarge,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+                    )
+                }
+            }
+        }
+    }
+
+    // v0.0.6 — Switch-folder bottom sheet.
+    if (showSwitchFolder) {
+        val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+        ModalBottomSheet(
+            onDismissRequest = { showSwitchFolder = false },
+            sheetState = sheetState,
+        ) {
+            SwitchFolderSheet(
+                s = s,
+                currentUri = openFolder?.uri,
+                workspaceUri = remember { Uri.fromFile(FileUtils.localWorkspaceRoot(context)) },
+                projectUris = remember { FileUtils.listExtractedProjects(context).map { Uri.fromFile(it) } },
+                recentUris = recentFolderUris,
+                onPick = { uri ->
                     scope.launch {
-                        val tab = repo.openFile(node.uri)
-                        if (tab != null) onOpenFile(tab.id)
+                        SettingsRepository.lastFolderUri.set(uri.toString())
+                        repo.openFolder(uri)
+                        repo.refreshDirectory(uri)
+                        expanded = setOf(uri)
+                        RecentFolders.add(uri)
                     }
+                    showSwitchFolder = false
                 },
-                onLongPress = { node -> longPressTarget = node },
+                onBrowseDevice = {
+                    showSwitchFolder = false
+                    folderPicker.launch(primaryRoot)
+                },
+                onOpenSaf = {
+                    showSwitchFolder = false
+                    folderPicker.launch(null)
+                },
             )
         }
     }
@@ -541,6 +738,177 @@ private fun RecentFilesRow(
                         )
                     }
                 }
+            }
+        }
+    }
+}
+
+/**
+ * v0.0.6 — bottom-sheet content for "Switch folder".
+ *
+ * Lists the local workspace, all extracted ZIP projects, and every
+ * recently-opened SAF folder in one place so the user can jump between
+ * them without re-opening the SAF picker. Also exposes explicit
+ * "Browse device storage" and "Open folder (SAF)" shortcuts at the
+ * bottom.
+ */
+@Composable
+private fun SwitchFolderSheet(
+    s: Strings.T,
+    currentUri: Uri?,
+    workspaceUri: Uri,
+    projectUris: List<Uri>,
+    recentUris: List<Uri>,
+    onPick: (Uri) -> Unit,
+    onBrowseDevice: () -> Unit,
+    onOpenSaf: () -> Unit,
+) {
+    val scrollState = rememberScrollState()
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 8.dp, vertical = 8.dp)
+            .verticalScroll(scrollState),
+    ) {
+        // Workspace section.
+        SectionLabel(text = s.homeFolderSectionWorkspace)
+        FolderRow(
+            name = s.homeFolderSectionWorkspace,
+            subtitle = workspaceUri.lastPathSegment ?: workspaceUri.toString(),
+            isActive = currentUri == workspaceUri,
+            icon = Icons.Filled.Workspaces,
+            onClick = { onPick(workspaceUri) },
+        )
+        Spacer(Modifier.height(8.dp))
+
+        // Extracted projects section.
+        SectionLabel(text = s.homeFolderSectionProjects)
+        if (projectUris.isEmpty()) {
+            Text(
+                text = s.homeNoProjects,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+            )
+        } else {
+            projectUris.forEach { uri ->
+                val name = uri.lastPathSegment ?: uri.toString()
+                FolderRow(
+                    name = name.substringAfterLast('/').ifBlank { name },
+                    subtitle = uri.toString(),
+                    isActive = currentUri == uri,
+                    icon = Icons.Filled.Folder,
+                    onClick = { onPick(uri) },
+                )
+            }
+        }
+        Spacer(Modifier.height(8.dp))
+
+        // Recent folders section.
+        if (recentUris.isNotEmpty()) {
+            SectionLabel(text = s.homeFolderSectionRecent)
+            // Filter out URIs we've already shown above (workspace + projects).
+            val alreadyShown = buildSet {
+                add(workspaceUri.toString())
+                addAll(projectUris.map { it.toString() })
+            }
+            recentUris.filterNot { it.toString() in alreadyShown }.forEach { uri ->
+                val name = uri.lastPathSegment ?: uri.toString()
+                FolderRow(
+                    name = name.substringAfterLast('/').ifBlank { name },
+                    subtitle = uri.toString(),
+                    isActive = currentUri == uri,
+                    icon = Icons.Filled.History,
+                    onClick = { onPick(uri) },
+                )
+            }
+            Spacer(Modifier.height(8.dp))
+        }
+
+        // Device section.
+        SectionLabel(text = s.homeFolderSectionDevice)
+        FolderRow(
+            name = s.homeBrowseDevice,
+            subtitle = null,
+            isActive = false,
+            icon = Icons.Filled.FolderOpen,
+            onClick = onBrowseDevice,
+        )
+        FolderRow(
+            name = s.homeOpenFolderSaf,
+            subtitle = null,
+            isActive = false,
+            icon = Icons.Filled.FolderOpen,
+            onClick = onOpenSaf,
+        )
+        Spacer(Modifier.height(16.dp))
+    }
+}
+
+@Composable
+private fun SectionLabel(text: String) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.labelMedium,
+        color = MaterialTheme.colorScheme.primary,
+        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+    )
+}
+
+@Composable
+private fun FolderRow(
+    name: String,
+    subtitle: String?,
+    isActive: Boolean,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    onClick: () -> Unit,
+) {
+    Surface(
+        color = if (isActive) MaterialTheme.colorScheme.primaryContainer
+        else MaterialTheme.colorScheme.surface,
+        shape = RoundedCornerShape(10.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 8.dp, vertical = 4.dp)
+            .clickable(onClick = onClick),
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = if (isActive) MaterialTheme.colorScheme.onPrimaryContainer
+                else MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = name,
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = if (isActive) MaterialTheme.colorScheme.onPrimaryContainer
+                    else MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                if (subtitle != null) {
+                    Text(
+                        text = subtitle,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (isActive) MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+                        else MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+            if (isActive) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                )
             }
         }
     }

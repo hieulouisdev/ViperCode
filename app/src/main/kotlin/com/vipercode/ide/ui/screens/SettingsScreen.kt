@@ -2,6 +2,8 @@ package com.vipercode.ide.ui.screens
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -52,7 +54,7 @@ import kotlinx.coroutines.launch
  * font family, font size, tab size, word wrap, line numbers,
  * auto-indent, auto-save + delay, local workspace toggle.
  */
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun SettingsScreen(onBack: () -> Unit) {
     val scope = rememberCoroutineScope()
@@ -294,13 +296,15 @@ private fun SliderRow(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun ThemeSelector(current: ThemeMode, s: Strings.T, onChange: (ThemeMode) -> Unit) {
     Column(modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp)) {
         Text(s.settingsTheme, style = MaterialTheme.typography.bodyLarge)
-        Row(
+        FlowRow(
             modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             ThemeMode.entries.forEach { mode ->
                 FilterChip(
@@ -321,6 +325,7 @@ private fun ThemeSelector(current: ThemeMode, s: Strings.T, onChange: (ThemeMode
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun LanguageSelector(current: LanguageMode, onChange: (LanguageMode) -> Unit) {
     val s = Strings.get()
@@ -331,9 +336,10 @@ private fun LanguageSelector(current: LanguageMode, onChange: (LanguageMode) -> 
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        Row(
+        FlowRow(
             modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             LanguageMode.entries.forEach { mode ->
                 FilterChip(
@@ -354,12 +360,14 @@ private fun LanguageSelector(current: LanguageMode, onChange: (LanguageMode) -> 
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun SortSelector(current: SortBy, s: Strings.T, onChange: (SortBy) -> Unit) {
     Column(modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp)) {
-        Row(
+        FlowRow(
             modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             SortBy.entries.forEach { sb ->
                 FilterChip(
@@ -380,13 +388,15 @@ private fun SortSelector(current: SortBy, s: Strings.T, onChange: (SortBy) -> Un
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun FontFamilySelector(current: FontFamily, s: Strings.T, onChange: (FontFamily) -> Unit) {
     Column(modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp)) {
         Text(s.settingsFontFamily, style = MaterialTheme.typography.bodyLarge)
-        Row(
+        FlowRow(
             modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             FontFamily.entries.forEach { ff ->
                 FilterChip(

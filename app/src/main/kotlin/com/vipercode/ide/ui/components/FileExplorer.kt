@@ -19,6 +19,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Folder
@@ -26,6 +27,7 @@ import androidx.compose.material.icons.outlined.InsertDriveFile
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -39,6 +41,7 @@ import androidx.compose.ui.unit.sp
 import com.vipercode.ide.data.model.FileNode
 import com.vipercode.ide.util.FileUtils
 import com.vipercode.ide.util.Language
+import com.vipercode.ide.util.Strings
 
 /**
  * A scrollable tree view of the open workspace.
@@ -52,6 +55,13 @@ import com.vipercode.ide.util.Language
  *
  * Long-press a file/folder to surface the per-row context menu
  * (rename, delete).
+ *
+ * v0.0.6 — the empty-state strings are routed through [Strings.get]
+ * so the explorer honours the user's interface language, and an
+ * "empty folder" hint is shown when the open folder is non-null but
+ * has no children (matches the v0.0.6 fix for "click 'use local
+ * workspace' and nothing shows" — the local workspace was empty and
+ * the old UI rendered a blank tree with no explanation).
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -72,19 +82,26 @@ fun FileExplorer(
     // expanded directories contribute their children; collapsed
     // directories contribute only themselves.
     val flatRows = flattenTree(root, children, expanded)
+    val s = Strings.get()
 
     LazyColumn(modifier = modifier.fillMaxSize()) {
         item(key = "header:${root.uri}") {
             FolderHeader(name = root.name)
         }
-        items(flatRows, key = { it.node.uri.toString() + ":" + it.depth }) { row ->
-            FlatFileRow(
-                row = row,
-                isExpanded = row.node.uri in expanded,
-                onToggleFolder = onToggleFolder,
-                onOpenFile = onOpenFile,
-                onLongPress = onLongPress,
-            )
+        if (flatRows.isEmpty()) {
+            item(key = "empty-folder-hint") {
+                EmptyFolderHint(s.homeEmptyFolder, s.homeEmptyFolderHint)
+            }
+        } else {
+            items(flatRows, key = { it.node.uri.toString() + ":" + it.depth }) { row ->
+                FlatFileRow(
+                    row = row,
+                    isExpanded = row.node.uri in expanded,
+                    onToggleFolder = onToggleFolder,
+                    onOpenFile = onOpenFile,
+                    onLongPress = onLongPress,
+                )
+            }
         }
     }
 }
@@ -219,12 +236,60 @@ private fun iconFor(node: FileNode) = when (node.language) {
     else -> Icons.Filled.Description
 }
 
+/**
+ * v0.0.6 — shown when the open folder exists but contains no files.
+ *
+ * Previously the explorer just rendered an empty `LazyColumn`, so when
+ * the user tapped "Use local workspace" and the local workspace had
+ * just been created (and was therefore empty), the screen looked
+ * blank. The hint tells the user to use the + FAB to create a new
+ * file or folder so they understand they CAN actually do something.
+ */
+@Composable
+private fun EmptyFolderHint(title: String, body: String) {
+    Surface(
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+        shape = RoundedCornerShape(12.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+    ) {
+        Row(
+            modifier = Modifier.padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                imageVector = Icons.Filled.Add,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(28.dp),
+            )
+            Spacer(Modifier.width(12.dp))
+            Column {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text = body,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+    }
+}
+
 @Composable
 private fun EmptyWorkspace(modifier: Modifier = Modifier) {
+    val s = Strings.get()
     Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center,
+            modifier = Modifier.padding(24.dp),
         ) {
             Icon(
                 imageVector = Icons.Filled.Folder,
@@ -234,12 +299,13 @@ private fun EmptyWorkspace(modifier: Modifier = Modifier) {
             )
             Spacer(Modifier.height(8.dp))
             Text(
-                text = "No folder opened",
+                text = s.homeNoFolder,
                 style = MaterialTheme.typography.titleSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+            Spacer(Modifier.height(4.dp))
             Text(
-                text = "Pick a folder to start coding",
+                text = s.homePickFolder,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
             )

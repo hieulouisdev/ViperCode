@@ -226,6 +226,50 @@ class FileRepository(private val appContext: Context) {
             FileUtils.searchInFiles(appContext, rootUri, query)
         }
 
+    /**
+     * v0.0.6 — extracts a ZIP picked via SAF into a new subfolder under
+     * `projects/` and returns the [FileNode] of the extracted folder so
+     * the caller can immediately switch to it.
+     *
+     * Returns null if extraction failed. The caller is responsible for
+     * surfacing the error to the user.
+     */
+    suspend fun extractZipToProjects(zipUri: Uri, suggestedName: String? = null): FileNode? =
+        withContext(Dispatchers.IO) {
+            runCatching {
+                val dir = FileUtils.extractZipToProjects(appContext, zipUri, suggestedName)
+                val uri = android.net.Uri.fromFile(dir)
+                val root = FileNode(
+                    uri = uri,
+                    name = dir.name,
+                    isDirectory = true,
+                    size = 0L,
+                    lastModified = dir.lastModified(),
+                    mimeType = null,
+                    parentUri = null,
+                )
+                _openFolder.value = root
+                refreshDirectory(uri)
+                root
+            }.getOrNull()
+        }
+
+    /** v0.0.6 — lists all extracted project folders as [FileNode]s. */
+    suspend fun listExtractedProjects(): List<FileNode> = withContext(Dispatchers.IO) {
+        FileUtils.listExtractedProjects(appContext).map { dir ->
+            val uri = android.net.Uri.fromFile(dir)
+            FileNode(
+                uri = uri,
+                name = dir.name,
+                isDirectory = true,
+                size = 0L,
+                lastModified = dir.lastModified(),
+                mimeType = null,
+                parentUri = null,
+            )
+        }
+    }
+
     suspend fun rename(uri: Uri, newName: String): Boolean = withContext(Dispatchers.IO) {
         val ok = FileUtils.rename(appContext, uri, newName)
         val parent = _tree.value.entries.firstOrNull { (_, kids) -> kids.any { it.uri == uri } }?.key

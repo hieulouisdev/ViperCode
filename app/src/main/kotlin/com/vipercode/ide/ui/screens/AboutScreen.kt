@@ -35,6 +35,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.vipercode.ide.BuildConfig
@@ -165,13 +167,21 @@ private fun BrandHero() {
                 color = ViperOnDark,
                 fontSize = 24.sp,
                 fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center,
             )
             Spacer(Modifier.height(4.dp))
+            // v0.0.6 — cap the tagline to a single line with ellipsis so
+            // long Vietnamese phrases don't wrap and break the layout
+            // of the brand hero on narrow screens.
             Text(
                 text = s.tagline,
                 color = ViperAccent,
                 fontSize = 13.sp,
                 fontWeight = FontWeight.Medium,
+                textAlign = TextAlign.Center,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(horizontal = 16.dp),
             )
         }
     }
@@ -196,10 +206,13 @@ private fun BulletList(items: List<String>) {
                     color = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.padding(end = 8.dp),
                 )
+                // v0.0.6 — let long feature lines wrap to the next
+                // line instead of overflowing horizontally.
                 Text(
                     text = item,
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.weight(1f),
                 )
             }
         }
@@ -211,16 +224,24 @@ private fun InfoLine(label: String, value: String) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.Top,
     ) {
         Text(
             text = label,
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(end = 16.dp),
         )
+        // v0.0.6 — ellipsize the value so long URLs and version strings
+        // no longer push the label off the screen.
         Text(
             text = value,
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurface,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            textAlign = TextAlign.End,
+            modifier = Modifier.weight(1f, fill = false),
         )
     }
 }
