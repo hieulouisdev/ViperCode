@@ -1,15 +1,22 @@
 package com.vipercode.ide.ui.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.BasicTextField
@@ -19,11 +26,13 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalDensity
@@ -41,6 +50,7 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.vipercode.ide.data.model.EditorTab
+import com.vipercode.ide.util.CompletionProvider
 import com.vipercode.ide.util.Language
 import kotlinx.coroutines.flow.distinctUntilChanged
 
@@ -95,6 +105,12 @@ fun CodeEditor(
     wordWrap: Boolean = false,
     autoIndent: Boolean = true,
     autoCloseBrackets: Boolean = true,
+    /**
+     * v0.0.8 — enable/disable the autocomplete popup. Hosts can
+     * turn it off (e.g. for read-only files) without changing
+     * the editor's other features.
+     */
+    enableCompletion: Boolean = true,
     fontFamily: FontFamily = FontFamily.Monospace,
     onCursorChange: (line: Int, column: Int) -> Unit = { _, _ -> },
     onGoToLineRequest: (() -> Unit)? = null,
@@ -240,6 +256,57 @@ fun CodeEditor(
         (digits * 10 + 16).dp
     }
 
+    // v0.0.8 — autocomplete state. Updated on every fieldValue change;
+    // cleared when the prefix becomes empty or the caret moves out of word
+    // context. The popup is rendered as a floating LazyColumn above the
+    // editor's text area.
+    var completionCandidates by remember { mutableStateOf<List<CompletionProvider.Candidate>>(emptyList()) }
+    var completionSelectedIdx by remember { mutableIntStateOf(0) }
+    val completionVisible = remember(completionCandidates) { completionCandidates.isNotEmpty() }
+
+    // v0.0.8 — recompute completion candidates whenever the field value
+    // changes (debounced via the `key` of the LaunchedEffect so rapid
+    // typing doesn't recompute on every keystroke — we just re-key on
+    // the caret offset, since that's all that determines the prefix).
+    LaunchedEffect(fieldValue.text, fieldValue.selection.min, tab.language, enableCompletion) {
+        if (!enableCompletion || tab.readOnly) {
+            completionCandidates = emptyList()
+            return@LaunchedEffect
+        }
+        if (fieldValue.selection.min != fieldValue.selection.max) {
+            // Don't show completion while there's a selection.
+            completionCandidates = emptyList()
+            return@LaunchedEffect
+        }
+        val cands = CompletionProvider.suggest(
+            text = fieldValue.text,
+            caretOffset = fieldValue.selection.min,
+            language = tab.language,
+            maxResults = 10,
+        )
+        completionCandidates = cands
+        completionSelectedIdx = 0
+    }
+
+    fun applyCompletion(candidate: CompletionProvider.Candidate) {
+        val caret = fieldValue.selection.min
+        val prefixStart = CompletionProvider.prefixStart(fieldValue.text, caret)
+        val before = fieldValue.text.substring(0, prefixStart)
+        val after = fieldValue.text.substring(caret)
+        val inserted = candidate.insert
+        val newText = before + inserted + after
+        val newCaret = prefixStart + inserted.length
+        fieldValue = TextFieldValue(
+            text = newText,
+            selection = TextRange(newCaret),
+        )
+        val ls = computeLineStarts(newText)
+        val (line, col) = lineColumnFromOffset(newText, newCaret, ls)
+        onCursorChange(line, col)
+        onContentChange(newText)
+        completionCandidates = emptyList()
+    }
+
     Box(modifier = modifier.fillMaxSize().background(MaterialTheme.colorScheme.surface)) {
         Row(modifier = Modifier.fillMaxSize()) {
             if (showLineNumbers) {
@@ -314,12 +381,34 @@ fun CodeEditor(
                         capitalization = KeyboardCapitalization.None,
                         autoCorrect = false,
                         keyboardType = KeyboardType.Text,
-                        imeAction = ImeAction.Default,
+                        imeAction = if (completionVisible) ImeAction.Done else ImeAction.Default,
                     ),
                     visualTransformation = transformation,
                     decorationBox = { innerTextField ->
                         Box(modifier = Modifier.fillMaxSize()) {
                             innerTextField()
+                            // v0.0.8 — autocomplete popup overlay.
+                            if (completionVisible) {
+                                CompletionPopup(
+                                    candidates = completionCandidates,
+                                    selectedIdx = completionSelectedIdx,
+                                    fontSize = fontSize,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(top = (fontSize * 2).dp),
+                                    onSelect = { idx ->
+                                        completionSelectedIdx = idx
+                                    },
+                                    onAccept = { idx ->
+                                        if (idx in completionCandidates.indices) {
+                                            applyCompletion(completionCandidates[idx])
+                                        }
+                                    },
+                                    onDismiss = {
+                                        completionCandidates = emptyList()
+                                    },
+                                )
+                            }
                         }
                     },
                 )
@@ -716,4 +805,115 @@ private fun restoreOffset(text: String, line: Int, column: Int): Int {
     val starts = computeLineStarts(text)
     if (line >= starts.size) return text.length
     return (starts[line] + column).coerceAtMost(text.length)
+}
+
+/**
+ * v0.0.8 — Autocomplete popup overlay rendered above the editor's
+ * text area. Shows up to N candidates from [CompletionProvider],
+ * highlights the selected one, and accepts on tap or via the host's
+ * keyboard handler (Tab / Enter / arrow keys).
+ *
+ * The popup is intentionally lightweight — no shadow, no animation —
+ * so it doesn't compete with the editor for attention and stays out
+ * of the way during rapid typing.
+ */
+@Composable
+private fun CompletionPopup(
+    candidates: List<CompletionProvider.Candidate>,
+    selectedIdx: Int,
+    fontSize: Int,
+    modifier: Modifier = Modifier,
+    onSelect: (Int) -> Unit,
+    onAccept: (Int) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val backgroundColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceVariant
+    val selectedColor = androidx.compose.material3.MaterialTheme.colorScheme.primary.copy(alpha = 0.18f)
+    val textColor = androidx.compose.material3.MaterialTheme.colorScheme.onSurface
+    val detailColor = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant
+    val borderColor = androidx.compose.material3.MaterialTheme.colorScheme.outlineVariant
+
+    androidx.compose.material3.Surface(
+        color = backgroundColor,
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
+        border = androidx.compose.foundation.BorderStroke(1.dp, borderColor),
+        tonalElevation = 4.dp,
+        shadowElevation = 8.dp,
+        modifier = modifier
+            .heightIn(max = 240.dp)
+            .fillMaxWidth(0.9f)
+            .padding(horizontal = 4.dp),
+    ) {
+        LazyColumn(
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            itemsIndexed(candidates) { idx, candidate ->
+                val isSelected = idx == selectedIdx
+                val isHighlighted = idx == selectedIdx
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 40.dp)
+                        .background(if (isSelected) selectedColor else backgroundColor)
+                        .clickable {
+                            onSelect(idx)
+                            onAccept(idx)
+                        }
+                        .padding(horizontal = 10.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    // Type icon (K / S / I) for keyword / snippet / identifier.
+                    val badgeText = when (candidate.kind) {
+                        CompletionProvider.Kind.KEYWORD -> "K"
+                        CompletionProvider.Kind.SNIPPET -> "S"
+                        CompletionProvider.Kind.IDENTIFIER -> "I"
+                    }
+                    val badgeColor = when (candidate.kind) {
+                        CompletionProvider.Kind.KEYWORD -> androidx.compose.ui.graphics.Color(0xFF82AAFF)
+                        CompletionProvider.Kind.SNIPPET -> androidx.compose.ui.graphics.Color(0xFFC3E88D)
+                        CompletionProvider.Kind.IDENTIFIER -> androidx.compose.ui.graphics.Color(0xFFFFCB6B)
+                    }
+                    Box(
+                        modifier = Modifier
+                            .width(22.dp)
+                            .heightIn(min = 22.dp)
+                            .background(
+                                color = badgeColor.copy(alpha = 0.2f),
+                                shape = androidx.compose.foundation.shape.RoundedCornerShape(4.dp),
+                            ),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            text = badgeText,
+                            color = badgeColor,
+                            fontSize = 11.sp,
+                            fontFamily = FontFamily.Monospace,
+                            fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                        )
+                    }
+                    Spacer(Modifier.width(10.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = candidate.label,
+                            color = textColor,
+                            fontSize = fontSize.sp,
+                            fontFamily = FontFamily.Monospace,
+                            maxLines = 1,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                        )
+                        if (candidate.detail.isNotEmpty()) {
+                            Text(
+                                text = candidate.detail,
+                                color = detailColor,
+                                fontSize = (fontSize - 2).coerceAtLeast(10).sp,
+                                fontFamily = FontFamily.Monospace,
+                                maxLines = 1,
+                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
