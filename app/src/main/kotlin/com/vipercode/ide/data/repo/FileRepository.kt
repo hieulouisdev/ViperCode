@@ -66,10 +66,13 @@ class FileRepository(private val appContext: Context) {
      * snackbar if the URI can no longer be resolved.
      */
     suspend fun openFolder(uri: Uri): RepoResult<FileNode> = withContext(Dispatchers.IO) {
-        val doc = FileUtils.resolve(appContext, uri) ?: return@withContext
-            RepoResult.Failure("Cannot resolve folder — permission may have been revoked")
-        if (!doc.isDirectory) return@withContext
-            RepoResult.Failure("Selected document is not a folder")
+        // v0.0.8 — `return@withContext RepoResult.Failure(...)` MUST
+        // be on a single line; multi-line continuation parsed
+        // `return@withContext` as a Unit-returning statement and the
+        // `RepoResult.Failure(...)` as a separate (dead) expression.
+        val doc = FileUtils.resolve(appContext, uri)
+            ?: return@withContext RepoResult.Failure("Cannot resolve folder — permission may have been revoked")
+        if (!doc.isDirectory) return@withContext RepoResult.Failure("Selected document is not a folder")
         val root = FileNode(
             uri = uri,
             name = doc.name ?: displayNameForLocal(uri),
@@ -110,8 +113,8 @@ class FileRepository(private val appContext: Context) {
             RecentFiles.add(uri)
             return@withContext RepoResult.Success(existing)
         }
-        val doc = FileUtils.resolve(appContext, uri) ?: return@withContext
-            RepoResult.Failure("Cannot resolve file — it may have been moved or deleted")
+        val doc = FileUtils.resolve(appContext, uri)
+            ?: return@withContext RepoResult.Failure("Cannot resolve file — it may have been moved or deleted")
         val name = doc.name ?: uri.lastPathSegment ?: "Untitled"
         val mime = doc.type
         val language = LanguageDetector.detect(name, mime)
@@ -182,8 +185,8 @@ class FileRepository(private val appContext: Context) {
      * swallowed and the user thought the file was saved).
      */
     suspend fun saveTab(tabId: String): RepoResult<Unit> = withContext(Dispatchers.IO) {
-        val tab = _tabs.value.firstOrNull { it.id == tabId } ?: return@withContext
-            RepoResult.Failure("Tab not found: $tabId")
+        val tab = _tabs.value.firstOrNull { it.id == tabId }
+            ?: return@withContext RepoResult.Failure("Tab not found: $tabId")
         // v0.0.8 — rethrow CancellationException so coroutine
         // cancellation is preserved (previously runCatching swallowed
         // it, breaking structured concurrency).

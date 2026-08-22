@@ -13,7 +13,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
@@ -247,11 +247,11 @@ fun SettingsScreen(onBack: () -> Unit, onAbout: () -> Unit = {}) {
             ) {
                 Text(text = s.settingsAboutOpen, style = MaterialTheme.typography.bodyLarge)
                 Icon(
-                    // v0.0.8 — KeyboardArrowRight is NOT an auto-mirrored
-                    // icon (the automirrored variant doesn't exist in
-                    // Material Icons Extended for BOM 2024.12.01). Use the
-                    // standard filled variant instead.
-                    imageVector = androidx.compose.material.icons.filled.KeyboardArrowRight,
+                    // v0.0.8 — `KeyboardArrowRight` is available via
+                    // material-icons-extended; use the explicit
+                    // import above so the FQN doesn't fail to resolve
+                    // (was unresolved in v0.0.7 CI).
+                    imageVector = Icons.Filled.ChevronRight,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

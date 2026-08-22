@@ -68,6 +68,7 @@ import com.vipercode.ide.data.repo.FileRepository
 import com.vipercode.ide.util.Language
 import com.vipercode.ide.util.MarkdownRenderer
 import com.vipercode.ide.util.Strings
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext

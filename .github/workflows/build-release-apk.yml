@@ -7,22 +7,21 @@ name: Build Release APK
 #
 # Manual dispatch is also supported via the GitHub Actions tab.
 #
-# v0.0.5 changes:
-#  - Default `tag_name` input updated to v0.0.5 (was v0.0.3).
-#  - Release body is read from CHANGELOG.md so the user can edit
-#    rich text BEFORE publishing instead of the action overwriting it
-#    with a hardcoded template. If the release already has a body
-#    (e.g. user typed one in the GitHub UI), the existing body wins.
-#  - Added v3 signing (Android 9+) alongside v1+v2 for full forward
-#    compatibility with newer APK installers.
-#  - Made `setup-android` more robust by including platform-tools.
-#  - Soft-fail the apksigner verify step but keep its output visible.
-#  - Cache Gradle packages keyed on the version catalog hash so
-#    warm-cache builds across releases are faster.
-#  - Better error messages on missing APK output.
-#
 # v0.0.7 changes:
 #  - Default `tag_name` input updated to v0.0.7 (was v0.0.6).
+#
+# v0.0.8 changes:
+#  - Default `tag_name` input updated to v0.0.8 (was v0.0.7).
+#  - Made CI a required gate: the release build is skipped (and a
+#    clear error is printed) if the latest CI run on the same SHA
+#    didn't succeed. This prevents attaching a broken APK to a
+#    release when the user publishes a tag between CI runs.
+#  - Added an explicit lintDebug step (mirrors the CI workflow) so
+#    lint regressions are caught here too.
+#  - Bumped Java to JDK 21 (LTS, faster than 17 + matches the
+#    Temurin distribution's recommended LTS for AGP 8.7+).
+#  - Trimmed cache restore-keys to one entry to reduce cache
+#    thrash on cold builds.
 
 on:
   release:
@@ -32,7 +31,7 @@ on:
       tag_name:
         description: 'Tag name to attach the APK to (must already exist)'
         required: true
-        default: 'v0.0.7'
+        default: 'v0.0.8'
 
 jobs:
   build:
@@ -41,6 +40,7 @@ jobs:
     timeout-minutes: 45
     permissions:
       contents: write  # required to upload assets to the release
+      actions: read    # required to query the latest CI run status
 
     steps:
       - name: Checkout source
@@ -53,10 +53,10 @@ jobs:
           # points at, not the latest commit on the default branch.
           ref: ${{ github.event.release.tag_name || inputs.tag_name || github.ref }}
 
-      - name: Set up JDK 17
+      - name: Set up JDK 21
         uses: actions/setup-java@v4
         with:
-          java-version: '17'
+          java-version: '21'
           distribution: 'temurin'
 
       - name: Set up Android SDK
@@ -74,10 +74,43 @@ jobs:
           key: gradle-release-${{ runner.os }}-${{ hashFiles('**/*.gradle*', 'gradle/libs.versions.toml', 'gradle/wrapper/gradle-wrapper.properties') }}
           restore-keys: |
             gradle-release-${{ runner.os }}-
-            gradle-ci-${{ runner.os }}-
 
       - name: Grant execute permission for gradlew
         run: chmod +x ./gradlew
+
+      - name: Verify CI passed on this commit
+        # v0.0.8 — refuse to build a release APK if the latest CI
+        # run on the same SHA failed. This catches broken releases
+        # before the user gets a 0-byte APK asset attached.
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          SHA="${{ github.sha }}"
+          echo "Checking CI status on $SHA..."
+          # Query the latest CI workflow run for this SHA.
+          LATEST=$(gh run list \
+            --repo "$GITHUB_REPOSITORY" \
+            --workflow ci.yml \
+            --branch "$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo main)" \
+            --limit 1 \
+            --json conclusion,status,headSha,databaseId \
+            2>/dev/null || echo "")
+          if [ -z "$LATEST" ] || [ "$LATEST" = "[]" ]; then
+            echo "::warning::No CI run found — proceeding (this is normal for the very first release on a new branch)."
+            exit 0
+          fi
+          CONCLUSION=$(echo "$LATEST" | jq -r '.[0].conclusion // empty')
+          RUN_SHA=$(echo "$LATEST" | jq -r '.[0].headSha // empty')
+          if [ "$RUN_SHA" != "$SHA" ]; then
+            echo "::warning::Latest CI run was on $RUN_SHA, not $SHA — proceeding."
+            exit 0
+          fi
+          if [ "$CONCLUSION" != "success" ]; then
+            echo "::error::Latest CI run on $SHA did not succeed (conclusion=$CONCLUSION). Refusing to publish a broken release."
+            exit 1
+          fi
+          echo "Latest CI run on $SHA succeeded. Proceeding with release build."
 
       - name: Resolve release keystore
         id: keystore
@@ -113,6 +146,9 @@ jobs:
           echo "key_alias=${KEY_ALIAS:-vipercode}" >> "$GITHUB_OUTPUT"
           echo "key_pass=${KEY_PASS:-android}" >> "$GITHUB_OUTPUT"
 
+      - name: Lint (mirror CI)
+        run: ./gradlew lintDebug --no-daemon --stacktrace
+
       - name: Build release APK
         env:
           VIPC_SIGNING_STORE_FILE: ${{ steps.keystore.outputs.store_path }}
@@ -126,10 +162,10 @@ jobs:
         run: |
           # The release tag name is either the GitHub event tag (for
           # `release.published`) or the manual input (for
-          # `workflow_dispatch`). Default to v0.0.7.
+          # `workflow_dispatch`). Default to v0.0.8.
           TAG_NAME="${{ github.event.release.tag_name || inputs.tag_name }}"
           if [ -z "$TAG_NAME" ]; then
-            TAG_NAME="v0.0.7"
+            TAG_NAME="v0.0.8"
           fi
           # Strip leading "v" for the bare version string.
           VERSION="${TAG_NAME#v}"
@@ -225,3 +261,4 @@ jobs:
           path: ${{ steps.meta.outputs.apk_path }}
           if-no-files-found: warn
           retention-days: 30
+

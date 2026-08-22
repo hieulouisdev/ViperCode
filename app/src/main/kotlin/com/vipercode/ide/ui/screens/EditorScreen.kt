@@ -169,6 +169,28 @@ fun EditorScreen(
     val isHtmlTab = activeTab?.language == Language.HTML
     val isMarkdownTab = activeTab?.language == Language.MARKDOWN
 
+    // v0.0.8 — define handleBack BEFORE the BackHandler below so
+    // the forward reference doesn't fail to compile (Kotlin local
+    // functions can be called only after their declaration line).
+    fun handleBack() {
+        val t = activeTab
+        if (t == null || !t.isDirty || t.readOnly) { onBack(); return }
+        if (autoSaveEnabled) {
+            // v0.0.8 — cancel any pending debounced save and fire
+            // a synchronous save before navigating away.
+            pendingSaveJob?.cancel()
+            saveScope.launch {
+                val r = repo.saveTabIfDirty(t.id)
+                if (r is RepoResult.Failure) {
+                    snackbarHostState.showSnackbar("${s.editorSaveFailed}: ${r.message}")
+                }
+                onBack()
+            }
+        } else {
+            showUnsaved = t.id
+        }
+    }
+
     // v0.0.8 — register a system BackHandler so the back button
     // goes through `handleBack()` (saves unsaved changes / prompts
     // the unsaved dialog instead of silently losing edits).
@@ -232,24 +254,7 @@ fun EditorScreen(
         }
     }
 
-    fun handleBack() {
-        val t = activeTab
-        if (t == null || !t.isDirty || t.readOnly) { onBack(); return }
-        if (autoSaveEnabled) {
-            // v0.0.8 — cancel any pending debounced save and fire
-            // a synchronous save before navigating away.
-            pendingSaveJob?.cancel()
-            saveScope.launch {
-                val r = repo.saveTabIfDirty(t.id)
-                if (r is RepoResult.Failure) {
-                    snackbarHostState.showSnackbar("${s.editorSaveFailed}: ${r.message}")
-                }
-                onBack()
-            }
-        } else {
-            showUnsaved = t.id
-        }
-    }
+    // (handleBack defined above — near the BackHandler.)
 
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },

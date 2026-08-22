@@ -67,13 +67,18 @@ fun TabBar(
 ) {
     val s = Strings.get()
     val listState = androidx.compose.foundation.lazy.rememberLazyListState()
-    // v0.0.8 — auto-scroll the active tab into view.
+    // v0.0.8 — auto-scroll the active tab into view when the active
+    // tab changes OR when the tab list size changes (e.g. a new tab
+    // is opened off-screen).
     androidx.compose.runtime.LaunchedEffect(activeTabId, tabs.size) {
         if (activeTabId == null) return@LaunchedEffect
         val idx = tabs.indexOfFirst { it.id == activeTabId }
-        if (idx >= 0 && idx >= listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index?.plus(1)) {
-            listState.animateScrollToItem(idx)
-        } else if (idx >= 0 && idx < (listState.layoutInfo.visibleItemsInfo.firstOrNull()?.index ?: 0)) {
+        if (idx < 0) return@LaunchedEffect
+        val visible = listState.layoutInfo.visibleItemsInfo
+        val firstVisible = visible.firstOrNull()?.index ?: 0
+        val lastVisible = visible.lastOrNull()?.index ?: 0
+        // Only scroll if the active tab is outside the visible window.
+        if (idx < firstVisible || idx > lastVisible) {
             listState.animateScrollToItem(idx)
         }
     }
