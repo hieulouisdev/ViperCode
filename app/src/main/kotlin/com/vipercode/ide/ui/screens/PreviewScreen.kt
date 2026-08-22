@@ -273,6 +273,13 @@ fun PreviewScreen(
                         val html = composedHtml
                         val send = Intent(Intent.ACTION_SEND).apply {
                             type = "text/html"
+                            // v0.1.0 — set BOTH EXTRA_HTML_TEXT (proper
+                            // HTML share, used by Gmail/Slack/etc.) and
+                            // EXTRA_TEXT (plain-text fallback used by most
+                            // other share sheets). The previous code only
+                            // set EXTRA_TEXT, so the share sheet rendered
+                            // the HTML source as plain text.
+                            putExtra(Intent.EXTRA_HTML_TEXT, html)
                             putExtra(Intent.EXTRA_TEXT, html)
                             putExtra(Intent.EXTRA_SUBJECT, activeTab?.name ?: "preview.html")
                         }

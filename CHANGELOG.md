@@ -5,6 +5,95 @@ All notable changes to ViperCode are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v0.1.0] - 2026-08-22 — FIRST STABLE RELEASE
+
+This is the first stable, production-ready release of ViperCode. The
+release focuses on **fixing every known crash, logic bug, and GitHub
+Actions defect** found during a full codebase audit — the previous
+v0.0.9 release shipped an APK that crashed on launch because of
+insufficient ProGuard rules, and a series of editor UX bugs that this
+release resolves.
+
+### Fixed — Critical (release-blockers)
+
+- **Release-only launch crash** — the v0.0.9 release APK crashed
+  immediately on launch with `ExceptionInInitializerError`. Root cause:
+  `proguard-rules.pro` only kept `com.vipercode.ide.data.model.**` and
+  `com.vipercode.ide.data.prefs.**`, but the `Language` enum (in
+  `com.vipercode.ide.util.LanguageDetector`) has 100+ constants whose
+  companion-object `init` block calls `values()` while building the
+  `byExt`/`byMime` lookup maps. Under R8 obfuscation, the synthetic
+  `values()` / `valueOf(String)` methods can be renamed/removed,
+  throwing `ExceptionInInitializerError` on every cold start. **Fixed**
+  by adding comprehensive `-keep` rules for `util.**`, `data.repo.**`,
+  `ui.theme.**`, `Command`, `TextTransformOp`, all `@Composable`
+  methods in `com.vipercode.ide.**`, and explicit `enum` member keeps
+  for `values()`/`valueOf(String)` on every ViperCode enum class.
+- **Cold-start `ACTION_VIEW` intent dropped** — tapping a file in a
+  file manager to open it in ViperCode silently landed on Home if the
+  app was not already in memory. `MainActivity.onCreate` only handled
+  `ACTION_VIEW` in `onNewIntent`, which fires on warm starts only.
+  **Fixed** by reading the launching intent in `onCreate` and seeding
+  `pendingExternalUri` so the editor opens the tapped file directly.
+- **APK size sanity check** — the GitHub Actions release workflow now
+  refuses to upload a release APK under 2 MB. The previous v0.0.9 build
+  shipped a 3 MB APK that crashed; the new check surfaces over-shrinkage
+  (typically a sign of missing ProGuard keeps) as a hard workflow
+  error instead of a silent crash on the user's device.
+
+### Fixed — Editor
+
+- **Bookmarks are now per-tab** — bookmarks were stored as a single
+  `Set<Int>` shared across all tabs, so switching tabs leaked the
+  previous tab's bookmarks into the new tab. **Fixed** by hoisting the
+  state into `Map<String, Set<Int>>` keyed by `tab.id`.
+- **Go-to-Line snackbar cancellation** — the `LaunchedEffect(pendingGoToLine)`
+  wrote `pendingGoToLine = null` before calling
+  `snackbarHostState.showSnackbar(...)`. The null-write re-keyed the
+  effect, cancelling the snackbar's suspend call before it appeared.
+  **Fixed** by separating the snackbar into a dedicated
+  `LaunchedEffect(jumpToken, pendingGoToLineLabel)`.
+- **`@annotation` over-consume in SyntaxHighlighter** — the `@Foo`
+  token highlighter added a stray `+ 1` after `scanIdentifier`, which
+  already returns the index *after* the last identifier char. The
+  extra `+ 1` caused the trailing char (e.g. `)` in `@Foo)`) to be
+  highlighted as part of the annotation. **Fixed** by dropping the
+  `+ 1` and adjusting the boundary check.
+- **`moveLineUp` caret drift** — the caret offset after `moveLineUp`
+  included an asymmetric `+ (curBlock.length - prevBlock.length)`
+  term that produced wrong caret positions when the moved line was
+  longer than the previous one. **Fixed** by mirroring the math to
+  `moveLineDown` (simply `prevStart + colInLine`).
+
+### Fixed — Home Screen
+
+- **Folder-restore no longer one-shot** — the home-screen
+  `LaunchedEffect(Unit)` ran once per Activity lifetime. If the user
+  closed the workspace folder and came back to the home screen, the
+  previous-folder restoration never re-fired and they were left on
+  the empty state until they manually picked a folder. **Fixed** by
+  re-keying the effect on `openFolder` (which becomes null after
+  `closeFolder`) plus a `folderRestoreToken` for manual retries.
+
+### Fixed — Preview Screen
+
+- **Share HTML now sets `EXTRA_HTML_TEXT`** — the previous share
+  intent only set `Intent.EXTRA_TEXT` with the raw HTML, which most
+  share sheets render as escaped plain text. **Fixed** by setting
+  both `EXTRA_HTML_TEXT` (for proper HTML share targets like Gmail /
+  Slack) and `EXTRA_TEXT` (as a plain-text fallback).
+
+### Changed — Build & CI
+
+- Bumped `versionCode` 9 → 10 and `versionName` "0.0.9" → "0.1.0".
+- `build-release-apk.yml` default `tag_name` input updated to
+  `v0.1.0`.
+- Added an APK size sanity gate (< 2 MB aborts the release upload).
+- Added `apk_size_bytes` as a step output and a `::notice::` log
+  line so the release APK size is visible in the Actions UI.
+
+---
+
 ## [v0.0.9] - 2026-08-22 — THE SUPER UPDATE
 
 This is the largest ViperCode release ever. **2000+ features, fixes,

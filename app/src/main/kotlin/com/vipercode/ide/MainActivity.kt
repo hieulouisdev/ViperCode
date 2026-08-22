@@ -64,6 +64,16 @@ class MainActivity : ComponentActivity() {
         splash.setKeepOnScreenCondition { keepSplash }
         Handler(Looper.getMainLooper()).postDelayed({ keepSplash = false }, 600L)
 
+        // v0.1.0 — pick up the ACTION_VIEW intent that launched the
+        // Activity on cold start. The previous implementation only
+        // handled ACTION_VIEW in onNewIntent, which fires only when
+        // MainActivity is already alive (warm start). On a true cold
+        // start (app not in memory), the tapped file in a file manager
+        // was silently ignored and the user landed on Home.
+        if (intent?.action == Intent.ACTION_VIEW) {
+            pendingExternalUri.value = intent.data
+        }
+
         setContent {
             // Defaults are emitted immediately; the real preferences flow
             // in via the StateFlow without ever blocking the main thread.

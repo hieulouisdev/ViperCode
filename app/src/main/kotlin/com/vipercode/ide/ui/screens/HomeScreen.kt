@@ -69,6 +69,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -173,7 +174,16 @@ fun HomeScreen(
     var userMessage by remember { mutableStateOf<String?>(null) }
 
     // Restore the previous folder OR fall back to the local workspace.
-    LaunchedEffect(Unit) {
+    // v0.1.0 — FIX: previously keyed on `Unit`, so the effect ran once
+    // per Activity lifetime. If the user closed the folder and came
+    // back to the home screen, the restoration never re-fired and they
+    // were left on the empty state until they manually picked a folder.
+    // Now we key on `openFolder` (which becomes null after `closeFolder`)
+    // AND a dedicated `folderRestoreToken` that we can bump to retry.
+    // The early-return guard `openFolder != null` prevents the effect
+    // from re-opening a folder that's already open.
+    var folderRestoreToken by remember { mutableIntStateOf(0) }
+    LaunchedEffect(openFolder, folderRestoreToken) {
         if (openFolder != null) return@LaunchedEffect
         val saved = SettingsRepository.lastFolderUri.first()
         if (saved.isNotBlank()) {

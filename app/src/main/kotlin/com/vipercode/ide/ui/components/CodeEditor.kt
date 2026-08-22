@@ -1060,7 +1060,12 @@ fun moveLineUp(value: TextFieldValue): TextFieldValue {
     val curBlock = text.substring(curStart, curEnd)
     val prevBlock = text.substring(prevStart, prevEnd)
     val newText = text.substring(0, prevStart) + curBlock + prevBlock + text.substring(curEnd)
-    val newCaret = prevStart + colInLine + (curBlock.length - prevBlock.length).coerceAtLeast(0)
+    // v0.1.0 — FIX: drop the asymmetric `+ (curBlock.length - prevBlock.length)`
+    // term. After moving curBlock UP into prevStart's slot, the caret
+    // lives inside the (now-relocated) curBlock at the same column, so
+    // the caret offset is simply prevStart + colInLine (mirrored to
+    // moveLineDown which uses `curStart + nextBlock.length + colInLine`).
+    val newCaret = prevStart + colInLine
     return value.copy(text = newText, selection = TextRange(newCaret.coerceIn(0, newText.length)))
 }
 

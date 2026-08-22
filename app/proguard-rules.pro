@@ -10,23 +10,73 @@
 # was bloating the release APK by preventing R8 from shrinking
 # unused Compose code. The same applies to DataStore below.
 
-# Kotlin metadata
+# ── Kotlin metadata & attributes ─────────────────────────────────────────────
 -keepattributes *Annotation*, InnerClasses, Signature, Exceptions, EnclosingMethod
+-keepattributes RuntimeVisibleAnnotations, RuntimeVisibleParameterAnnotations, RuntimeVisibleTypeAnnotations
+-keepattributes SourceFile, LineNumberTable
 -dontwarn kotlinx.**
 
-# Keep ViperCode app entry points
+# ── ViperCode app entry points (mandatory) ───────────────────────────────────
 -keep class com.vipercode.ide.MainActivity { *; }
 -keep class com.vipercode.ide.ViperCodeApp { *; }
 
-# Keep BuildConfig fields referenced from Compose (version display, etc.)
+# ── BuildConfig (referenced from Compose UI) ─────────────────────────────────
 -keep class com.vipercode.ide.BuildConfig { *; }
 
-# Keep data classes used as Compose state
+# ── Data model classes used as Compose state ─────────────────────────────────
 -keep class com.vipercode.ide.data.model.** { *; }
 
-# Keep SettingsRepository.Pref subclasses (reflection-free, but used in singleton init)
+# ── SettingsRepository + Pref + enum reflection ─────────────────────────────
+# SettingsRepository.decode reads enum constants via Class.enumConstants,
+# so the enum synthetic methods (values/valueOf) MUST survive R8.
 -keep class com.vipercode.ide.data.prefs.** { *; }
+-keepclassmembers enum com.vipercode.ide.data.prefs.** {
+    public static **[] values();
+    public static ** valueOf(java.lang.String);
+}
 
-# DocumentFile is referenced via reflection by AndroidX
+# ── FileRepository + RepoResult sealed class (checked via `as?` casts) ───────
+-keep class com.vipercode.ide.data.repo.** { *; }
+
+# ── util package — Language enum + Maps + SearchHit ──────────────────────────
+# The `Language` enum has 100+ constants and its companion-object init
+# block calls `values()` while building byExt/byMime lookup maps. R8
+# must NOT rename or remove `values()` / `valueOf(String)` or the
+# static-init throws ExceptionInInitializerError on launch — this was
+# the root cause of "release crashes, debug works" in v0.0.9.
+-keep class com.vipercode.ide.util.** { *; }
+-keepclassmembers enum com.vipercode.ide.util.** {
+    public static **[] values();
+    public static ** valueOf(java.lang.String);
+}
+
+# ── Editor themes (referenced by name from SettingsRepository.preferredTheme) ─
+-keep class com.vipercode.ide.ui.theme.** { *; }
+
+# ── Command + TextTransformOp (enum / data classes used across UI) ───────────
+-keep class com.vipercode.ide.ui.screens.Command { *; }
+-keepclassmembers enum com.vipercode.ide.ui.components.TextTransformOp {
+    public static **[] values();
+    public static ** valueOf(java.lang.String);
+}
+-keep class com.vipercode.ide.ui.components.TextTransformOp { *; }
+
+# ── All @Composable methods in the app (R8 sometimes mis-inlines lambdas) ──
+-keepclassmembers class com.vipercode.ide.** {
+    @androidx.compose.runtime.Composable <methods>;
+}
+
+# ── Kotlin @Metadata annotation (sealed subtypes + enum reflection) ─────────
+-keep @kotlin.Metadata class com.vipercode.ide.**
+
+# ── DocumentFile (loaded via fromTreeUri/fromSingleUri reflection) ────────────
 -keep class androidx.documentfile.provider.** { *; }
 
+# ── DataStore preferences (proto accessor uses reflection on Preferences.Key) ─
+-keep class androidx.datastore.preferences.** { *; }
+-keep class androidx.datastore.core.** { *; }
+
+# ── Kotlinx coroutines (state flow symbols used by Pref class) ──────────────
+-keepclassmembers class kotlinx.coroutines.flow.** {
+    public <methods>;
+}

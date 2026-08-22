@@ -14,9 +14,25 @@ android {
         applicationId = "com.vipercode.ide"
         minSdk = 25
         targetSdk = 35
-        // v0.0.9 — SUPER UPDATE: 100+ new features, tools, themes, languages.
-        versionCode = 9
-        versionName = "0.0.9"
+        // v0.1.0 — first public release after a thorough codebase audit:
+        //   * Fixed release-only launch crash caused by insufficient
+        //     ProGuard -keep rules for util.*, data.repo.*, ui.theme.*,
+        //     Command, TextTransformOp (R8 was stripping the `Language`
+        //     enum's `values()` synthetic, throwing
+        //     ExceptionInInitializerError on cold start).
+        //   * Fixed cold-start ACTION_VIEW intent handling so tapping a
+        //     file in a file manager now opens it directly (was silently
+        //     ignored on cold start).
+        //   * Bookmarks are now keyed per-tab (was a global Set<Int>).
+        //   * Go-to-Line snackbar no longer cancelled by its own state
+        //     reset.
+        //   * Fixed SyntaxHighlighter `@annotation` over-consume of one
+        //     trailing character.
+        //   * Fixed CodeEditor moveLineUp caret drift.
+        //   * HomeScreen folder-restore now re-fires after closeFolder.
+        //   * PreviewScreen Share HTML now sets EXTRA_HTML_TEXT.
+        versionCode = 10
+        versionName = "0.1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {

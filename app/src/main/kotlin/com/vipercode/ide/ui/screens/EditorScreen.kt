@@ -171,6 +171,11 @@ fun EditorScreen(
     var showSearch by remember { mutableStateOf(false) }
     var showGoToLine by remember { mutableStateOf(false) }
     var pendingGoToLine by remember { mutableStateOf<Int?>(null) }
+    // v0.1.0 — carries the target line number across the
+    // pendingGoToLine reset → snackbar LaunchedEffect boundary so the
+    // snackbar can still display "Go to line: N" after the original
+    // LaunchedEffect has been cancelled by the null-write.
+    var pendingGoToLineLabel by remember { mutableStateOf<Int?>(null) }
     var jumpToken by remember { mutableIntStateOf(0) }
     var commentToggleToken by remember { mutableIntStateOf(0) }
     var cursorLine by remember { mutableIntStateOf(0) }
@@ -187,7 +192,12 @@ fun EditorScreen(
     var transformToken by remember { mutableIntStateOf(0) }
     var transformOp by remember { mutableStateOf(TextTransformOp.NONE) }
     // v0.0.9 — bookmarks (per-tab line numbers; keyed by tab.id).
-    var bookmarks by remember { mutableStateOf<Set<Int>>(emptySet()) }
+    // v0.1.0 — FIX: bookmarks now live in a Map keyed by tab.id so
+    // switching tabs shows the correct tab's bookmarks (was a single
+    // Set<Int> shared across all tabs, so switching tabs leaked the
+    // previous tab's bookmarks into the new tab).
+    var bookmarks by remember { mutableStateOf<Map<String, Set<Int>>>(emptyMap()) }
+    val activeBookmarks = activeTab?.let { bookmarks[it.id] ?: emptySet() } ?: emptySet()
     var bookmarkToggleToken by remember { mutableIntStateOf(0) }
     var gotoNextBookmarkToken by remember { mutableIntStateOf(0) }
     var gotoPrevBookmarkToken by remember { mutableIntStateOf(0) }
@@ -864,8 +874,15 @@ fun EditorScreen(
                         bookmarkToggleToken = bookmarkToggleToken,
                         gotoNextBookmarkToken = gotoNextBookmarkToken,
                         gotoPrevBookmarkToken = gotoPrevBookmarkToken,
-                        bookmarks = bookmarks,
-                        onBookmarksChange = { bookmarks = it },
+                        bookmarks = activeBookmarks,
+                        onBookmarksChange = { newSet ->
+                            // v0.1.0 — write into the per-tab slot of
+                            // the Map, not a global Set<Int>.
+                            val t = activeTab ?: return@CodeEditor
+                            bookmarks = bookmarks.toMutableMap().apply {
+                                put(t.id, newSet)
+                            }
+                        },
                         modifier = Modifier.fillMaxSize(),
                     )
                 }
@@ -925,6 +942,15 @@ fun EditorScreen(
         )
     }
 
+    // v0.1.0 — FIX: the previous LaunchedEffect(pendingGoToLine) wrote
+    // `pendingGoToLine = null` BEFORE calling `snackbarHostState.showSnackbar(...)`.
+    // The null-write re-keyed the effect, cancelling the running
+    // coroutine (and the suspend `showSnackbar` call) before the
+    // snackbar had a chance to appear. Now we bump `jumpToken`
+    // synchronously (which is the actual signal the CodeEditor listens
+    // to), reset `pendingGoToLine` to null, and surface the snackbar
+    // from a SEPARATE LaunchedEffect keyed on `jumpToken` so the
+    // snackbar call cannot be cancelled by the null-write.
     LaunchedEffect(pendingGoToLine) {
         val targetLine = pendingGoToLine ?: return@LaunchedEffect
         pendingGoToLine = null
@@ -932,7 +958,17 @@ fun EditorScreen(
         val safeLine = (targetLine - 1).coerceAtLeast(0)
         repo.updateTabCursor(tab.id, safeLine, 0)
         jumpToken++
-        snackbarHostState.showSnackbar("${s.dialogGoToLineTitle}: $targetLine")
+        pendingGoToLineLabel = targetLine
+    }
+
+    LaunchedEffect(jumpToken, pendingGoToLineLabel) {
+        // Show the "Go to line: N" snackbar AFTER the jump token has
+        // been bumped. Decoupling this from the pendingGoToLine reset
+        // means the snackbar call survives the state mutation above.
+        if (jumpToken == 0 || pendingGoToLineLabel == null) return@LaunchedEffect
+        val target = pendingGoToLineLabel ?: return@LaunchedEffect
+        pendingGoToLineLabel = null
+        snackbarHostState.showSnackbar("${s.dialogGoToLineTitle}: $target")
     }
 
     showUnsaved?.let { id ->
