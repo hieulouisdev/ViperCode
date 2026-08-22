@@ -117,7 +117,7 @@ android {
         // an intermediate inflate step. This roughly doubles the APK
         // size on disk but eliminates the per-read CPU cost and
         // matches the > 50 MB APK target requested for v0.11.
-        noCompress.addAll("ttf", "otf", "woff", "woff2", "html", "json", "md", "txt", "zip")
+        noCompress += listOf("ttf", "otf", "woff", "woff2", "html", "json", "md", "txt", "zip")
     }
 }
 
