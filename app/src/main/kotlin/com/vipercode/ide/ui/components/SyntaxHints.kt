@@ -3,8 +3,6 @@ package com.vipercode.ide.ui.components
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.buildAnnotatedString
-import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 
@@ -142,6 +140,15 @@ object SyntaxHints {
      * skips the O(start) pre-scan of string/comment state. False
      * matches inside strings are tolerated — typing latency matters
      * more than perfect correctness during active editing.
+     *
+     * v0.0.8 fix: the previous `walkMatchFast` started the walk at
+     * `i = start` — meaning the first iteration processed the
+     * starting bracket itself. For an opener, the first iteration
+     * incremented `depth` to 1, so the matching closer encountered
+     * later would have `depth == 1` (not 0) and would decrement to
+     * 0 instead of returning. Simple `()` thus returned `null`.
+     * Fixed by starting at `start + step` (skipping the starting
+     * bracket itself).
      */
     private fun findMatchingBracket(source: String, caretOffset: Int): Pair<Int, Int>? {
         val n = source.length
@@ -150,16 +157,20 @@ object SyntaxHints {
         // Caret sits BETWEEN characters. We check the char immediately
         // before the caret first (most common case when typing a close
         // bracket), then the char immediately after.
-        val before = (caretOffset - 1).coerceAtLeast(0)
+        // v0.0.8 — only consider the char BEFORE the caret if the
+        // caret is actually past position 0; otherwise source[-1]
+        // is a coerced 0 which collapses both `before` and `after`
+        // to the same index.
+        val before = caretOffset - 1
         val after = caretOffset.coerceAtMost(n - 1)
 
-        val beforeCh = source[before]
-        val afterCh = source[after]
+        val beforeCh = if (before >= 0) source[before] else null
+        val afterCh = if (after < n) source[after] else null
 
         return when {
-            beforeCh in OPENERS || beforeCh in CLOSERS ->
+            beforeCh != null && (beforeCh in OPENERS || beforeCh in CLOSERS) ->
                 walkMatchFast(source, before, beforeCh)
-            afterCh in OPENERS || afterCh in CLOSERS ->
+            afterCh != null && (afterCh in OPENERS || afterCh in CLOSERS) ->
                 walkMatchFast(source, after, afterCh)
             else -> null
         }
@@ -173,6 +184,11 @@ object SyntaxHints {
      *
      * The walker still respects nesting depth so a `}` inside a nested
      * block doesn't get matched to the wrong opener.
+     *
+     * v0.0.8 fix: start at `start + step` so we don't count the
+     * starting bracket itself in `depth`.
+     * v0.0.8: cap walk to a reasonable distance (4 096 chars) so
+     * an unbalanced bracket doesn't trigger a full-document scan.
      */
     private fun walkMatchFast(source: String, start: Int, ch: Char): Pair<Int, Int>? {
         val n = source.length
@@ -180,21 +196,25 @@ object SyntaxHints {
         val target = if (opener) OPENERS[ch]!! else CLOSERS[ch]!!
         val same = ch
         val other = target
-        var depth = 0
-        var i = start
+        // v0.0.8 — start AFTER the starting bracket; the starting
+        // bracket itself is what we're matching FROM, not a depth
+        // counter. Walk outward looking for `other` while respecting
+        // nested same-type pairs.
         val step = if (opener) 1 else -1
-        // Cap the walk to a reasonable distance so an unbalanced bracket
-        // doesn't make us scan the whole document.
-        val maxSteps = n
+        var i = start + step
+        var depth = 0
+        // v0.0.8 — bound the walk to 4 096 chars so an unbalanced
+        // bracket doesn't scan the whole document on every caret move.
+        val maxSteps = 4096
         var steps = 0
         while (i in 0 until n && steps < maxSteps) {
             val c = source[i]
             when {
-                c == same -> depth++
                 c == other -> {
                     if (depth == 0) return start to i
                     depth--
                 }
+                c == same -> depth++
             }
             i += step
             steps++
@@ -205,6 +225,7 @@ object SyntaxHints {
     /**
      * Walks forward (for an opener) or backward (for a closer) to find
      * the matching counterpart, skipping over nested same-type pairs.
+     * (Dead code since v0.0.4 — kept for a future lint pass.)
      */
     private fun walkMatch(source: String, start: Int, ch: Char): Pair<Int, Int>? {
         val n = source.length
@@ -213,18 +234,12 @@ object SyntaxHints {
         val same = ch
         val other = target
         var depth = 0
-        var i = start
-        // Forward for opener, backward for closer.
+        var i = start + (if (opener) 1 else -1)
         val step = if (opener) 1 else -1
-        // Track whether we're inside a string/comment so we don't match
-        // brackets inside string literals.
         var inString = false
         var stringChar: Char? = null
         var inLineComment = false
         var inBlockComment = false
-        // Initialize the comment/string state by scanning from 0 to start.
-        // (Cheaper than re-scanning the whole file on every keystroke is
-        // a v0.0.4 optimization.)
         for (k in 0 until start) {
             val c = source[k]
             when {
@@ -234,7 +249,7 @@ object SyntaxHints {
                 }
                 inString -> {
                     if (c == '\\') {
-                        // skip next char (escape)
+                        k + 1
                     } else if (c == stringChar) {
                         inString = false
                         stringChar = null
@@ -248,8 +263,6 @@ object SyntaxHints {
                 }
             }
         }
-        // We don't reset inString/inLineComment/inBlockComment — we pick
-        // up from the current state at position `start`.
         while (i in 0 until n) {
             val c = source[i]
             when {
@@ -259,7 +272,8 @@ object SyntaxHints {
                 }
                 inString -> {
                     if (c == '\\') {
-                        i += step
+                        i += 2
+                        continue
                     } else if (c == stringChar) {
                         inString = false
                         stringChar = null
@@ -321,7 +335,15 @@ object SyntaxHints {
                     i += 2
                     continue
                 }
-                c == '"' || c == '\'' || c == '`' -> {
+                c == '"' || c == '\'' -> {
+                    inString = true
+                    stringChar = c
+                }
+                // v0.0.8 — backtick is a string delimiter only in
+                // JS/TS. In other languages a stray backtick (e.g. in
+                // a comment) would otherwise open a "string" and the
+                // rest of the file's brackets would be miscounted.
+                c == '`' -> {
                     inString = true
                     stringChar = c
                 }

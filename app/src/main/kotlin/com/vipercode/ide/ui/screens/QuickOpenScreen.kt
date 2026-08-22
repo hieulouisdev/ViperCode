@@ -83,12 +83,15 @@ fun QuickOpenScreen(
     // Walk the tree once on first composition (or when the open
     // folder changes). Subsequent queries filter the cached list.
     LaunchedEffect(openFolder?.uri) {
-        if (openFolder == null) return@LaunchedEffect
+        // v0.0.8 — capture folder at the top of the effect so
+        // a folder-close between `withContext` returning and
+        // `openFolder!!.uri` evaluating doesn't NPE.
+        val folder = openFolder ?: return@LaunchedEffect
         loading = true
         val files = withContext(Dispatchers.IO) {
             val out = mutableListOf<FileNode>()
             val queue = ArrayDeque<Uri>()
-            queue.addLast(openFolder!!.uri)
+            queue.addLast(folder.uri)
             val visited = HashSet<Uri>()
             while (queue.isNotEmpty() && out.size < 1000) {
                 val current = queue.removeFirst()
@@ -109,20 +112,25 @@ fun QuickOpenScreen(
     // Filter the cached list as the user types. Case-insensitive
     // substring match. We also rank results so files whose NAME
     // (not path) starts with the query bubble to the top.
+    // v0.0.8 — offload to Dispatchers.Default so 1000-file filters
+    // don't block the main thread.
     LaunchedEffect(query, allFiles) {
         if (query.isBlank()) {
             results = allFiles.take(200)
             return@LaunchedEffect
         }
         val q = query.lowercase()
-        val matched = allFiles.filter { it.name.contains(q, ignoreCase = true) }
-        results = matched.sortedWith(
-            compareBy(
-                { !it.name.lowercase().startsWith(q) },  // starts-with first
-                { !it.name.substringBeforeLast('.').lowercase().contains(q) },  // basename contains
-                { it.name.lowercase() },  // alphabetical tie-breaker
-            )
-        ).take(200)
+        val matched = withContext(Dispatchers.Default) {
+            allFiles.filter { it.name.contains(q, ignoreCase = true) }
+                .sortedWith(
+                    compareBy(
+                        { !it.name.lowercase().startsWith(q) },
+                        { !it.name.substringBeforeLast('.').lowercase().contains(q) },
+                        { it.name.lowercase() },
+                    )
+                )
+        }
+        results = matched.take(200)
     }
 
     Scaffold(
@@ -236,4 +244,5 @@ fun QuickOpenScreen(
             }
         }
     }
+}
 }

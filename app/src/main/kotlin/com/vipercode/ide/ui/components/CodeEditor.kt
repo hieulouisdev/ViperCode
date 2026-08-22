@@ -132,6 +132,13 @@ fun CodeEditor(
         )
     }
 
+    // v0.0.8 — re-key scroll states on tab.id so switching tabs
+    // resets the scroll position (was inheriting the previous tab's
+    // scroll, leaving the new tab scrolled past its end).
+    val verticalScrollState = rememberScrollState()
+    val horizontalScrollState = rememberScrollState()
+    val gutterListState = rememberLazyListState()
+
     // If the underlying content changed externally (file reload, undo
     // from outside, tab switch to a tab whose memory state was cleared),
     // sync the field — but PRESERVE the caret position (coerced into
@@ -177,10 +184,8 @@ fun CodeEditor(
     val lineStarts = remember(sourceText) { computeLineStarts(sourceText) }
     val lineCount = lineStarts.size
 
-    // ── Scroll states ────────────────────────────────────────────────
-    val verticalScrollState = rememberScrollState()
-    val horizontalScrollState = rememberScrollState()
-    val gutterListState = rememberLazyListState()
+    // (scroll states declared above with the field state so they
+    // live in the same `remember` group as fieldValue)
 
     val rowHeightPx = with(density) { (fontSize + 6).sp.toPx() }
 
@@ -199,7 +204,12 @@ fun CodeEditor(
     // Keep the gutter in sync with the editor's vertical scroll.
     // v0.0.7 — flow through snapshotFlow + distinctUntilChanged so a
     // fling only triggers one scrollToItem per visible-row change.
-    LaunchedEffect(showLineNumbers, verticalScrollState) {
+    // v0.0.8 — also key on `lineCount` and `rowHeightPx` so the
+    // snapshotFlow block picks up new values when the document grows
+    // or shrinks (was capturing plain `val`s that never re-evaluated,
+    // causing stale clamp values & possible scrollToItem past the new
+    // item count).
+    LaunchedEffect(showLineNumbers, verticalScrollState, lineCount, rowHeightPx) {
         if (!showLineNumbers) return@LaunchedEffect
         snapshotFlow {
             if (rowHeightPx <= 0f) 0
@@ -284,7 +294,12 @@ fun CodeEditor(
                         .then(horizontalModifier)
                         .verticalScroll(verticalScrollState)
                         .padding(horizontal = 12.dp, vertical = 12.dp),
-                    enabled = !tab.readOnly,
+                    // v0.0.8 — `enabled = !tab.readOnly` made
+                    // read-only files completely non-focusable,
+                    // so the user couldn't select/copy text from
+                    // them. Now always enabled; `readOnly`
+                    // already blocks edits.
+                    enabled = true,
                     readOnly = tab.readOnly,
                     textStyle = TextStyle(
                         fontFamily = fontFamily,
@@ -427,6 +442,12 @@ private fun applySmartEdits(
             val nextIsWord = next.isLetterOrDigit() || next == '_'
             val isAngle = typed == '<'
             val contextAllowsAngle = language == Language.HTML || language == Language.XML
+            // v0.0.8 — don't auto-close a bracket when the very
+            // next char is already the matching close. The
+            // previous code only guarded quote pairs (so typing
+            // `(` before an existing `)` produced `())` with an
+            // extra closer).
+            val nextIsMatchingClose = !isQuote && next == close
             // v0.0.7: don't auto-close a quote when the caret is inside
             // an existing string literal (typing a quote mid-string
             // should produce a single quote, not a "" pair).
@@ -436,6 +457,7 @@ private fun applySmartEdits(
                 isQuote && nextIsWord -> false
                 isQuote && next == typed -> false // " before " → skip-over
                 isQuote && caretInsideString -> false
+                nextIsMatchingClose -> false
                 else -> true
             }
             if (shouldClose) {

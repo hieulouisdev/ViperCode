@@ -158,7 +158,9 @@ fun EditorScreen(
 
     // Resolve the actual active tab — derivedStateOf avoids the O(n)
     // scan per recomposition that the v0.0.6 firstOrNull{...} had.
-    val activeTab by remember {
+    // v0.0.8 — re-key on tabId so a navarg update picks up the
+    // new id (was captured at first composition).
+    val activeTab by remember(tabId) {
         derivedStateOf {
             val target = activeId ?: tabId
             tabs.firstOrNull { it.id == target }
@@ -166,6 +168,13 @@ fun EditorScreen(
     }
     val isHtmlTab = activeTab?.language == Language.HTML
     val isMarkdownTab = activeTab?.language == Language.MARKDOWN
+
+    // v0.0.8 — register a system BackHandler so the back button
+    // goes through `handleBack()` (saves unsaved changes / prompts
+    // the unsaved dialog instead of silently losing edits).
+    androidx.activity.compose.BackHandler(enabled = true) {
+        handleBack()
+    }
 
     LaunchedEffect(tabs, activeId, tabId) {
         if (tabs.isEmpty()) return@LaunchedEffect
@@ -187,7 +196,13 @@ fun EditorScreen(
     // coroutine is NOT cancelled mid-write — the file is fully
     // written before we return.
     LaunchedEffect(
+        // v0.0.8 — re-key on a stable signal of "which tab is
+        // active" + dirty state, NOT on `activeTab?.content`
+        // (which fires on every keystroke). The debounced save
+        // reads the latest tab content from `repo.tabs` at fire
+        // time so we don't need the content as a key.
         activeTab?.id,
+        activeTab?.isDirty,
         activeTab?.content,
         autoSaveEnabled,
         autoSaveDelayMs,
@@ -197,7 +212,13 @@ fun EditorScreen(
         if (!tab.isDirty) return@LaunchedEffect
         if (tab.readOnly) return@LaunchedEffect
         delay(autoSaveDelayMs.toLong())
-        // Don't cancel previous save — `saveScope` keeps it alive.
+        // v0.0.8 — CANCEL the previous save before launching a new
+        // one. The previous v0.0.7 code overwrote `pendingSaveJob`
+        // WITHOUT cancelling it, so two `saveTabIfDirty` jobs could
+        // run concurrently against the same file via `wt` mode,
+        // re-introducing the file corruption that v0.0.7 was meant
+        // to fix.
+        pendingSaveJob?.cancel()
         pendingSaveJob = saveScope.launch {
             val result = repo.saveTabIfDirty(tab.id)
             when (result) {
@@ -215,8 +236,14 @@ fun EditorScreen(
         val t = activeTab
         if (t == null || !t.isDirty || t.readOnly) { onBack(); return }
         if (autoSaveEnabled) {
+            // v0.0.8 — cancel any pending debounced save and fire
+            // a synchronous save before navigating away.
+            pendingSaveJob?.cancel()
             saveScope.launch {
-                repo.saveTabIfDirty(t.id)
+                val r = repo.saveTabIfDirty(t.id)
+                if (r is RepoResult.Failure) {
+                    snackbarHostState.showSnackbar("${s.editorSaveFailed}: ${r.message}")
+                }
                 onBack()
             }
         } else {
@@ -375,7 +402,19 @@ fun EditorScreen(
                             showUnsaved = id
                         } else {
                             if (t.isDirty && autoSaveEnabled && !t.readOnly) {
-                                repo.saveTab(id)
+                                // v0.0.8 — surface save failures via a
+                                // snackbar (was silently swallowed).
+                                val r = repo.saveTab(id)
+                                if (r is RepoResult.Failure) {
+                                    snackbarScope.launch {
+                                        snackbarHostState.showSnackbar(
+                                            "${s.editorSaveFailed}: ${r.message}"
+                                        )
+                                    }
+                                    // Don't close on failure — let the user
+                                    // see what happened and decide.
+                                    return@launch
+                                }
                             }
                             repo.closeTab(id, discardUnsaved = true)
                             if (repo.tabs.value.isEmpty()) onBack()
@@ -407,10 +446,14 @@ fun EditorScreen(
                 }
             }
             if (showSearch && activeTab != null) {
+                val tab = activeTab!!
                 SearchReplaceBar(
-                    tab = activeTab!!,
+                    tab = tab,
                     onApplyChanges = { newText ->
-                        repo.updateTabContent(activeTab!!.id, newText)
+                        // v0.0.8 — capture `tab` at composition so a
+                        // mid-keystroke tab switch can't redirect the
+                        // edit to the wrong tab.
+                        repo.updateTabContent(tab.id, newText)
                     },
                     onMessage = { msg ->
                         snackbarScope.launch { snackbarHostState.showSnackbar(msg) }
@@ -421,29 +464,43 @@ fun EditorScreen(
                 HorizontalDivider()
             }
             if (activeTab != null) {
-                CodeEditor(
-                    tab = activeTab!!,
-                    onContentChange = { newContent ->
-                        repo.updateTabContent(activeTab!!.id, newContent)
-                    },
-                    onCursorChange = { line, col ->
-                        repo.updateTabCursor(activeTab!!.id, line, col)
-                        cursorLine = line
-                        cursorColumn = col
-                        selectionLength = 0
-                    },
-                    fontSize = fontSize,
-                    tabSize = tabSize,
-                    showLineNumbers = lineNumbers,
-                    wordWrap = wordWrap,
-                    autoIndent = autoIndent,
-                    autoCloseBrackets = autoCloseBrackets,
-                    fontFamily = fontFamilyPref.toComposeFontFamily(),
-                    jumpToken = jumpToken,
-                    jumpLine = pendingGoToLine ?: activeTab!!.cursorLine,
-                    commentToggleToken = commentToggleToken,
-                    modifier = Modifier.fillMaxSize(),
-                )
+                // v0.0.8 — wrap CodeEditor in key(tab.id) so the
+                // editor's internal verticalScrollState,
+                // horizontalScrollState, gutterListState, and
+                // fieldValue reset on tab switch (was inheriting the
+                // previous tab's scroll position, leaving the new
+                // tab scrolled past its end).
+                androidx.compose.runtime.key(activeTab!!.id) {
+                    CodeEditor(
+                        tab = activeTab!!,
+                        onContentChange = { newContent ->
+                            // v0.0.8 — capture `activeTab` is not safe
+                            // inside key() since the lambda is captured at
+                            // composition; we re-read the tab from the
+                            // derivedStateOf here.
+                            val t = activeTab ?: return@CodeEditor
+                            repo.updateTabContent(t.id, newContent)
+                        },
+                        onCursorChange = { line, col ->
+                            val t = activeTab ?: return@CodeEditor
+                            repo.updateTabCursor(t.id, line, col)
+                            cursorLine = line
+                            cursorColumn = col
+                            selectionLength = 0
+                        },
+                        fontSize = fontSize,
+                        tabSize = tabSize,
+                        showLineNumbers = lineNumbers,
+                        wordWrap = wordWrap,
+                        autoIndent = autoIndent,
+                        autoCloseBrackets = autoCloseBrackets,
+                        fontFamily = fontFamilyPref.toComposeFontFamily(),
+                        jumpToken = jumpToken,
+                        jumpLine = pendingGoToLine ?: activeTab!!.cursorLine,
+                        commentToggleToken = commentToggleToken,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                }
             } else {
                 // v0.0.7 — better empty state with icon + CTA.
                 Box(

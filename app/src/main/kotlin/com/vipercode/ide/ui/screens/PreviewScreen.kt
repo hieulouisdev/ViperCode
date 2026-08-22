@@ -70,6 +70,7 @@ import com.vipercode.ide.util.MarkdownRenderer
 import com.vipercode.ide.util.Strings
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * Live preview screen (v0.0.5 rewrite).
@@ -168,10 +169,14 @@ fun PreviewScreen(
     // The composed HTML document (HTML + inlined CSS + inlined JS
     // from sibling tabs of the same workspace, OR Markdown→HTML).
     //
-    // KEY FIX (v0.0.5): keyed on `refreshKey`, `tabs`, `activeLanguage`,
-    // `desktopMode` and `tabLanguage` so the snapshot is recomputed
-    // whenever any input that affects the rendered HTML changes.
-    val composedHtml = remember(refreshKey, tabs, activeLanguage, desktopMode, tabLanguage, activeTab?.content) {
+    // v0.0.8 FIX: this used to key on `activeTab?.content`, which
+    // re-evaluated on every keystroke and bypassed the debounce
+    // LaunchedEffect entirely (the `update` block then reloaded the
+    // WebView on every keystroke). Now we key ONLY on `refreshKey`
+    // (which is bumped by the debounce LaunchedEffect) plus a few
+    // other stable signals (sibling tabs, language, viewport mode).
+    // The debounce now actually works as documented.
+    val composedHtml = remember(refreshKey, tabs, activeLanguage, desktopMode, tabLanguage) {
         val html = activeTab?.content.orEmpty()
         when {
             !canPreview -> {
@@ -282,22 +287,29 @@ fun PreviewScreen(
                     // write the HTML to the app's cache first.
                     IconButton(onClick = {
                         val html = composedHtml
-                        runCatching {
-                            val cacheFile = java.io.File(context.cacheDir, "preview_share.html")
-                            cacheFile.writeText(html)
-                            val uri = androidx.core.content.FileProvider.getUriForFile(
-                                context,
-                                "${context.packageName}.fileprovider",
-                                cacheFile,
-                            )
-                            val view = Intent(Intent.ACTION_VIEW).apply {
-                                setDataAndType(uri, "text/html")
-                                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        // v0.0.8 — write to disk on IO so we don't
+                        // ANR on a multi-MB composed HTML doc.
+                        scope.launch {
+                            runCatching {
+                                val cacheFile = withContext(Dispatchers.IO) {
+                                    java.io.File(context.cacheDir, "preview_share.html").also {
+                                        it.writeText(html)
+                                    }
+                                }
+                                val uri = androidx.core.content.FileProvider.getUriForFile(
+                                    context,
+                                    "${context.packageName}.fileprovider",
+                                    cacheFile,
+                                )
+                                val view = Intent(Intent.ACTION_VIEW).apply {
+                                    setDataAndType(uri, "text/html")
+                                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                }
+                                context.startActivity(view)
+                            }.onFailure {
+                                Log.w("PreviewScreen", "open external failed: ${it.message}")
                             }
-                            context.startActivity(view)
-                        }.onFailure {
-                            Log.w("PreviewScreen", "open external failed: ${it.message}")
                         }
                     }) {
                         Icon(Icons.Filled.OpenInBrowser, contentDescription = s.previewOpenExternal)
@@ -460,12 +472,16 @@ fun PreviewScreen(
                             )
                             lastRenderedHtml = composedHtml
                         }
-                        // Toggle the desktop viewport by setting
-                        // the initial scale; the WebView will
-                        // re-layout on the next frame.
-                        val desiredScale = if (desktopMode) 100 else 0
-                        if (webview.scale.toInt() != desiredScale && desiredScale > 0) {
-                            runCatching { webview.setInitialScale(desiredScale) }
+                        // v0.0.8 — replace deprecated `webview.scale`
+                        // with `useWideViewPort` + `setInitialScale`,
+                        // and force a reload so the new scale takes
+                        // effect immediately (was one-way / non-
+                        // immediate — toggling OFF was impossible).
+                        val targetWide = desktopMode
+                        if (webview.settings.useWideViewPort != targetWide) {
+                            webview.settings.useWideViewPort = targetWide
+                            webview.setInitialScale(if (desktopMode) 100 else 0)
+                            webview.reload()
                         }
                     },
                 )

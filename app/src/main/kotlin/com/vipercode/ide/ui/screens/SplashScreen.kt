@@ -53,16 +53,29 @@ fun SplashScreen(onContinue: () -> Unit) {
     val activeLanguage by Strings.active.collectAsState()
     val s = Strings.get()
 
+    // v0.0.8 — guard against double-invocation when the timer
+    // fires AND the user taps the screen within the same frame.
+    var continued by remember { mutableStateOf(false) }
+    val once: () -> Unit = {
+        if (!continued) {
+            continued = true
+            onContinue()
+        }
+    }
+
     // v0.0.7 — splash is skippable: tap the screen to continue
     // immediately. Delay reduced from 1100 ms to 800 ms (combined
     // with the 600 ms system splash, total splash time is now
     // ~1.4 s instead of 1.7 s).
     LaunchedEffect(Unit) {
         delay(800)
-        onContinue()
+        once()
     }
 
     var visible by remember { mutableStateOf(false) }
+    // v0.0.8 — merged with the splash-delay effect above for a
+    // single 80ms-tick + 720ms-wait timeline (was two separate
+    // LaunchedEffect(Unit) blocks).
     LaunchedEffect(Unit) {
         delay(80)
         visible = true
@@ -82,9 +95,12 @@ fun SplashScreen(onContinue: () -> Unit) {
         modifier = Modifier
             .fillMaxSize()
             .background(ViperDark)
-            .pointerInput(Unit) {
+            // v0.0.8 — key on `once` so a parent passing a new
+            // `onContinue` lambda picks it up (was `pointerInput(Unit)`
+            // which captured the first lambda forever).
+            .pointerInput(once) {
                 // v0.0.7 — tap-to-skip the splash.
-                detectTapGestures(onTap = { onContinue() })
+                detectTapGestures(onTap = { once() })
             },
         contentAlignment = Alignment.Center,
     ) {

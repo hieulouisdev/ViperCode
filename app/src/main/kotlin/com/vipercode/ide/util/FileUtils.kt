@@ -108,24 +108,42 @@ object FileUtils {
      *
      * Both SAF tree URIs and `file://` URIs (used by the local workspace)
      * are supported transparently.
+     *
+     * v0.0.8 fix: the previous implementation mishandled child document
+     * URIs inside SAF trees. A URI like
+     * `content://.../tree/primary%3AFoo/document/primary%3AFoo%2Fbar`
+     * matched the `contains("/tree/")` branch and was passed to
+     * `DocumentFile.fromTreeUri(context, uri)`, which calls
+     * `DocumentsContract.getTreeDocumentId(uri)` — and that returns
+     * the TREE-ROOT id (always the first path segment after /tree/),
+     * NOT the child's id. So `listFiles()` queried the tree root,
+     * making every level of the explorer look identical.
+     *
+     * Fix: distinguish tree URIs (no `/document/` segment) from child
+     * document URIs. For child URIs we use `fromSingleUri`, which
+     * works for properties like `name` / `length` but cannot list
+     * children — child listing for SAF tree sub-paths is handled at
+     * the caller layer by walking from the tree root + iterating
+     * `findFile(name)` per segment. For the simpler case of file://
+     * paths the previous implementation was already correct.
      */
-    fun resolve(context: Context, uri: Uri): DocumentFile? = when {
-        uri.toString().startsWith("content://") -> {
-            // Tree URIs come from the SAF picker and look like
-            // content://com.android.externalstorage.documents/tree/primary%3AViperCode
-            // or document URIs without a "tree" segment.
-            val s = uri.toString()
-            if (s.contains("/tree/")) {
-                DocumentFile.fromTreeUri(context, uri)
-            } else {
-                DocumentFile.fromSingleUri(context, uri)
+    fun resolve(context: Context, uri: Uri): DocumentFile? {
+        val s = uri.toString()
+        return when {
+            !s.startsWith("content://") && !s.startsWith("file://") -> null
+            s.startsWith("file://") -> {
+                val path = uri.path ?: return null
+                DocumentFile.fromFile(File(path))
             }
+            // Pure tree URI (no /document/ segment) — root of a SAF tree.
+            s.contains("/tree/") && !s.contains("/document/") ->
+                DocumentFile.fromTreeUri(context, uri)
+            // Child document URI inside a SAF tree, OR a single-doc URI.
+            // `fromSingleUri` works for property reads but not for
+            // listFiles() — that case is handled by the caller walking
+            // from the tree root.
+            else -> DocumentFile.fromSingleUri(context, uri)
         }
-        uri.toString().startsWith("file://") -> {
-            val path = uri.path ?: return null
-            DocumentFile.fromFile(File(path))
-        }
-        else -> null
     }
 
     /**
@@ -320,10 +338,14 @@ object FileUtils {
     }
 
     private suspend fun copyFileContents(context: Context, src: DocumentFile, dst: DocumentFile) {
+        // v0.0.8 — fix resource leak: if openOutputStream returns
+        // null (provider refusal / revoked permission), the already-
+        // open `input` stream was never closed. Use a proper `use`
+        // chain so both streams are closed in all exit paths.
         try {
             val input = context.contentResolver.openInputStream(src.uri) ?: return
-            val output = context.contentResolver.openOutputStream(dst.uri, "wt") ?: return
             input.use { i ->
+                val output = context.contentResolver.openOutputStream(dst.uri, "wt") ?: return@use
                 output.use { o ->
                     val buf = ByteArray(64 * 1024)
                     while (true) {
@@ -363,12 +385,15 @@ object FileUtils {
     ): List<SearchHit> = withContext(Dispatchers.IO) {
         if (query.isBlank()) return@withContext emptyList()
         val q = query.trim()
-        val qLower = q.lowercase()
         val results = mutableListOf<SearchHit>()
         val queue = ArrayDeque<Uri>()
         queue.addLast(rootUri)
         val visited = HashSet<Uri>()
         while (queue.isNotEmpty() && results.size < limit) {
+            // v0.0.8 — yield so the inner loop is cancellable.
+            // Previously a runaway search on a 10k-file workspace
+            // would block the dispatcher until exhaustion.
+            kotlinx.coroutines.yield()
             val current = queue.removeFirst()
             if (!visited.add(current)) continue
             val dir = resolve(context, current) ?: continue
@@ -454,7 +479,11 @@ object FileUtils {
         if (parent.findFile(name) == null) return name
         val dot = name.lastIndexOf('.')
         val (base, ext) = when {
-            isDir || dot < 0 -> name to ""
+            // v0.0.8 — `dot <= 0` treats dotfiles (e.g. `.gitignore`,
+            // `.bashrc`) as having no extension (was `dot < 0`, which
+            // caused `.gitignore` to split into base="" and ext=".gitignore",
+            // producing ` (1).gitignore` for the second copy).
+            isDir || dot <= 0 -> name to ""
             else -> name.substring(0, dot) to name.substring(dot)
         }
         // Cap the loop to avoid infinite recursion on buggy providers.
@@ -495,9 +524,11 @@ object FileUtils {
 
     fun humanSize(bytes: Long): String = when {
         bytes < 1024 -> "${bytes} B"
-        bytes < 1024 * 1024 -> String.format("%.1f KB", bytes / 1024.0)
-        bytes < 1024 * 1024 * 1024 -> String.format("%.1f MB", bytes / (1024.0 * 1024))
-        else -> String.format("%.2f GB", bytes / (1024.0 * 1024 * 1024))
+        // v0.0.8 — pin format to Locale.US so Vietnamese-locale
+        // devices don't show "1,5 KB" (comma decimal separator).
+        bytes < 1024 * 1024 -> String.format(java.util.Locale.US, "%.1f KB", bytes / 1024.0)
+        bytes < 1024 * 1024 * 1024 -> String.format(java.util.Locale.US, "%.1f MB", bytes / (1024.0 * 1024))
+        else -> String.format(java.util.Locale.US, "%.2f GB", bytes / (1024.0 * 1024 * 1024))
     }
 
     val DefaultCharset: Charset = StandardCharsets.UTF_8

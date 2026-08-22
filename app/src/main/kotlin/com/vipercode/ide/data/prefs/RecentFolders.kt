@@ -1,13 +1,15 @@
 package com.vipercode.ide.data.prefs
 
 import android.net.Uri
+import android.util.Log
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 /**
@@ -26,6 +28,13 @@ import kotlinx.coroutines.launch
  * The repository caps the list at [MAX_ENTRIES] so it never grows
  * unbounded. When a new entry is added that's already in the list,
  * it's moved to the front (most-recent) instead of duplicated.
+ *
+ * v0.0.8 fixes (mirrors RecentFiles):
+ *  - Atomic `update { ... }` for `add()` / `remove()` / `clear()`
+ *    so concurrent calls don't lose entries.
+ *  - `load()` merges with in-memory state instead of overwriting.
+ *  - `persistAsync()` catches and logs disk errors.
+ *  - `Uri.parse` post-validated (`scheme != null`).
  */
 object RecentFolders {
 
@@ -39,42 +48,67 @@ object RecentFolders {
     /** Adds [uri] to the front of the recent list (de-duplicating). */
     fun add(uri: Uri) {
         val string = uri.toString()
-        val current = _uris.value.filterNot { it.toString() == string }
-        _uris.value = (listOf(uri) + current).take(MAX_ENTRIES)
+        _uris.update { current ->
+            (listOf(uri) + current.filterNot { it.toString() == string }).take(MAX_ENTRIES)
+        }
         persistAsync()
     }
 
     /** Removes [uri] from the recent list. */
     fun remove(uri: Uri) {
         val string = uri.toString()
-        _uris.value = _uris.value.filterNot { it.toString() == string }
+        _uris.update { current ->
+            current.filterNot { it.toString() == string }
+        }
         persistAsync()
     }
 
     /** Clears the entire recent list. */
     fun clear() {
-        _uris.value = emptyList()
+        _uris.update { emptyList() }
         persistAsync()
     }
 
     /**
      * Loads the persisted list from [SettingsRepository.recentFolders].
      * Called once at app start by [com.vipercode.ide.ViperCodeApp].
+     *
+     * v0.0.8 — merges the persisted list with any in-memory entries
+     * added between app start and the load finishing (was a hard
+     * assignment that clobbered concurrent `add()` calls).
      */
     suspend fun load() {
         val raw = SettingsRepository.recentFolders.first()
         if (raw.isBlank()) return
-        val list = raw.split('\n').filter { it.isNotBlank() }
+        val persisted = raw.split('\n').filter { it.isNotBlank() }
             .mapNotNull { runCatching { Uri.parse(it) }.getOrNull() }
+            .filter { it.scheme != null }
             .take(MAX_ENTRIES)
-        _uris.value = list
+        _uris.update { current ->
+            val seen = current.map { it.toString() }.toMutableSet()
+            val merged = current.toMutableList()
+            for (u in persisted) {
+                if (merged.size >= MAX_ENTRIES) break
+                if (u.toString() !in seen) {
+                    merged.add(u)
+                    seen.add(u.toString())
+                }
+            }
+            merged
+        }
     }
 
     /** Persists the current list to [SettingsRepository.recentFolders]. */
     private fun persistAsync() {
         val serialised = _uris.value.joinToString("\n") { it.toString() }
         scope.launch {
-            SettingsRepository.recentFolders.set(serialised)
+            try {
+                SettingsRepository.recentFolders.set(serialised)
+            } catch (ce: CancellationException) {
+                throw ce
+            } catch (t: Throwable) {
+                Log.w("RecentFolders", "persist failed", t)
+            }
         }
     }
 }

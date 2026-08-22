@@ -42,25 +42,62 @@ enum class Language(
     RUBY("Ruby", setOf("rb", "rbw"), setOf("application/x-ruby", "text/x-ruby"), "#"),
     LUA("Lua", setOf("lua"), setOf("text/x-lua", "application/x-lua"), "--", "--[[", "]]"),
     TOML("TOML", setOf("toml"), setOf("application/toml"), "#"),
-    INI("INI", setOf("ini", "cfg", "conf", "properties"), setOf("text/plain"), "#", ";"),
-    GIT("Git Ignore", setOf("gitignore", "gitattributes", "gitmodules"), setOf("text/plain"), "#"),
-    GRADLE("Gradle", setOf("gradle"), setOf("text/x-groovy"), "//", "/*", "*/"),
-    PROPERTIES("Properties", setOf("properties"), setOf("text/plain"), "#", "!"),
+    INI("INI", setOf("ini", "cfg", "conf"), setOf("text/plain", "text/x-ini"), "#", ";"),
+    GIT("Git Ignore", setOf("gitignore", "gitattributes", "gitmodules"), emptySet(), "#"),
+    GRADLE("Gradle", setOf("gradle"), setOf("text/x-groovy", "text/x-gradle"), "//", "/*", "*/"),
+    PROPERTIES("Properties", setOf("properties"), setOf("text/x-java-properties", "text/plain"), "#", "!"),
     TEXT("Plain Text", setOf("txt", "log"), setOf("text/plain")),
     UNKNOWN("Unknown", emptySet(), emptySet());
 
     companion object {
         private val byExt: Map<String, Language> = buildMap {
-            for (lang in values()) for (ext in lang.extensions) put(ext.lowercase(), lang)
+            // v0.0.8 — first-write-wins on extension collision. The
+            // previous `buildMap` was last-write-wins, which silently
+            // overwrote `gradle` from GROOVY when GRADLE was declared
+            // after it (same for `properties` between INI and
+            // PROPERTIES). Now we explicitly pick the more specific
+            // variant by declaring the order below.
+            // Insert order: most-specific first.
+            for (lang in values()) {
+                for (ext in lang.extensions) {
+                    if (!containsKey(ext.lowercase())) {
+                        put(ext.lowercase(), lang)
+                    }
+                }
+            }
         }
+        // v0.0.8 — `text/plain` is a generic MIME reported by SAF
+        // for nearly every plain-text file. Treating it as INI/GIT/
+        // PROPERTIES would override the extension-based detection
+        // (the previous buildMap put `text/plain` -> whichever
+        // variant was declared last, which was TEXT — but `detect`
+        // short-circuits on MIME so the extension was never
+        // consulted). The fix is to skip the generic `text/plain`
+        // MIME entirely; the extension still wins.
+        private val GENERIC_MIMES = setOf("text/plain", "application/octet-stream", "content/unknown")
         private val byMime: Map<String, Language> = buildMap {
-            for (lang in values()) for (mt in lang.mimeTypes) put(mt.lowercase(), lang)
+            for (lang in values()) {
+                for (mt in lang.mimeTypes) {
+                    if (mt.lowercase() !in GENERIC_MIMES) {
+                        put(mt.lowercase(), lang)
+                    }
+                }
+            }
         }
 
         fun detect(filename: String, mimeType: String? = null): Language {
-            mimeType?.let { byMime[it.lowercase()]?.let { l -> return l } }
+            // v0.0.8 — consult the EXTENSION first (it's more
+            // specific than the generic MIME types SAF reports).
             val ext = filename.substringAfterLast('.', missingDelimiterValue = "").lowercase()
             if (ext.isNotEmpty()) byExt[ext]?.let { return it }
+            // Only fall back to MIME if the extension didn't match
+            // AND the MIME is non-generic (text/plain would
+            // otherwise misclassify every plain-text file).
+            mimeType?.let { m ->
+                if (m.lowercase() !in GENERIC_MIMES) {
+                    byMime[m.lowercase()]?.let { return it }
+                }
+            }
             return UNKNOWN
         }
     }

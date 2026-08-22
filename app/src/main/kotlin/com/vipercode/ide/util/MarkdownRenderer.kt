@@ -167,7 +167,13 @@ $body
                     i++
                 }
                 if (i < lines.size) i++ // consume closing fence
-                val langAttr = if (lang.isNotEmpty()) " class=\"language-$lang\"" else ""
+                // v0.0.8 — XSS fix: strip non-alphanumeric chars
+                // from the lang token (was interpolated verbatim
+                // into `class="language-$lang"`, allowing
+                // ```java" onclick="alert(1)
+                // to inject arbitrary HTML attributes).
+                val safeLang = lang.filter { it.isLetterOrDigit() || it == '-' || it == '_' }
+                val langAttr = if (safeLang.isNotEmpty()) " class=\"language-$safeLang\"" else ""
                 out.append("<pre><code$langAttr>")
                 out.append(escapeHtml(sb.toString().trimEnd('\n')))
                 out.append("</code></pre>\n")
@@ -308,22 +314,39 @@ $body
             codeStash.add("<code>${mr.groupValues[1]}</code>")
             "\u0000${codeStash.size - 1}\u0000"
         }
-        // Images ![alt](url)
+        // Images ![alt](url) — v0.0.8 XSS fix: escape BOTH
+        // the url and the alt (was only escaping url, so
+        // `![evil" onerror="alert(...)](x)` injected an
+        // arbitrary onerror attribute on the <img>).
         s = IMAGE_REGEX.replace(s) { mr ->
             val alt = mr.groupValues[1]
             val url = mr.groupValues[2]
-            "<img src=\"${escapeAttr(url)}\" alt=\"$alt\"/>"
+            if (!isSafeUrl(url)) {
+                ""
+            } else {
+                "<img src=\"${escapeAttr(url)}\" alt=\"${escapeAttr(alt)}\"/>"
+            }
         }
-        // Links [label](url)
+        // Links [label](url) — v0.0.8 XSS fix: also reject
+        // javascript: / data: / vbscript: URLs that would
+        // execute attacker-controlled JS in the preview WebView.
         s = LINK_REGEX.replace(s) { mr ->
             val label = mr.groupValues[1]
             val url = mr.groupValues[2]
-            "<a href=\"${escapeAttr(url)}\">$label</a>"
+            if (!isSafeUrl(url)) {
+                label
+            } else {
+                "<a href=\"${escapeAttr(url)}\">$label</a>"
+            }
         }
         // Auto-links <https://…>
         s = AUTOLINK_REGEX.replace(s) { mr ->
             val url = mr.groupValues[1]
-            "<a href=\"${escapeAttr(url)}\">$url</a>"
+            if (!isSafeUrl(url)) {
+                escapeHtml(url)
+            } else {
+                "<a href=\"${escapeAttr(url)}\">$url</a>"
+            }
         }
         // Bold (must run before italic so ** is consumed first)
         s = BOLD_REGEX.replace(s) { mr ->
@@ -349,6 +372,27 @@ $body
 
     private fun escapeAttr(s: String): String =
         escapeHtml(s).replace("\"", "&quot;")
+
+    /**
+     * v0.0.8 — URL scheme whitelist. Rejects `javascript:`,
+     * `data:text/html`, `vbscript:`, etc. so a Markdown link like
+     * `[click](javascript:alert(1))` cannot execute arbitrary JS
+     * in the preview WebView.
+     */
+    private fun isSafeUrl(url: String): Boolean {
+        val trimmed = url.trim()
+        if (trimmed.isEmpty()) return false
+        // Relative URLs are safe.
+        if (trimmed.startsWith("#") || trimmed.startsWith("/") ||
+            trimmed.startsWith("?") ||
+            !trimmed.contains(':')) return true
+        val scheme = trimmed.substringBefore(':').lowercase()
+        return scheme in SAFE_URL_SCHEMES
+    }
+
+    private val SAFE_URL_SCHEMES = setOf(
+        "http", "https", "mailto", "ftp", "tel", "sms",
+    )
 
     private fun splitTableRow(line: String): List<String> {
         val trimmed = line.trim().trim('|')

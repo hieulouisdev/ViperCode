@@ -39,7 +39,7 @@ import com.vipercode.ide.util.Strings
 /**
  * Horizontally scrollable row of open editor tabs.
  *
- * v0.0.7 changes:
+ * v0.0.8 changes:
  *  - **48dp tap targets** — the close button is now an `IconButton`
  *    with the default 48dp size; the inner icon stays at 16dp for
  *    visual proportion.
@@ -49,7 +49,13 @@ import com.vipercode.ide.util.Strings
  *    accessibility.
  *  - **`contentDescription`** for the close button is now i18n'd via
  *    `Strings.get().editorCloseTab`.
- *  - **Tab height bumped to 40dp** for more breathing room (was 36dp).
+ *  - **Tab height bumped to 48dp** for more breathing room (was 40dp
+ *    in v0.0.7, 36dp before) — meets Material 3 minimum tap target.
+ *  - **Auto-scroll to active tab** — the `LazyRow` now keeps the
+ *    active tab scrolled into view.
+ *  - **Pulse animation** moved out of the conditional branch so
+ *    `rememberInfiniteTransition` is called unconditionally (was
+ *    crashing with `IllegalStateException` when `isDirty` flipped).
  */
 @Composable
 fun TabBar(
@@ -60,10 +66,22 @@ fun TabBar(
     modifier: Modifier = Modifier,
 ) {
     val s = Strings.get()
+    val listState = androidx.compose.foundation.lazy.rememberLazyListState()
+    // v0.0.8 — auto-scroll the active tab into view.
+    androidx.compose.runtime.LaunchedEffect(activeTabId, tabs.size) {
+        if (activeTabId == null) return@LaunchedEffect
+        val idx = tabs.indexOfFirst { it.id == activeTabId }
+        if (idx >= 0 && idx >= listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index?.plus(1)) {
+            listState.animateScrollToItem(idx)
+        } else if (idx >= 0 && idx < (listState.layoutInfo.visibleItemsInfo.firstOrNull()?.index ?: 0)) {
+            listState.animateScrollToItem(idx)
+        }
+    }
     LazyRow(
+        state = listState,
         modifier = modifier
             .fillMaxWidth()
-            .height(40.dp)
+            .height(48.dp)
             .background(MaterialTheme.colorScheme.surfaceVariant),
         contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 4.dp),
     ) {
@@ -87,11 +105,26 @@ private fun TabChip(
     onClose: () -> Unit,
     closeContentDescription: String,
 ) {
+    // v0.0.8 — `rememberInfiniteTransition` MUST be called
+    // unconditionally. Hoisting it here so that when `tab.isDirty`
+    // flips, Compose doesn't throw `IllegalStateException`
+    // ("Composable was called in an order that violates the rules").
+    val pulseTransition = rememberInfiniteTransition(label = "dirty-pulse")
+    val pulseAlpha by pulseTransition.animateFloat(
+        initialValue = 0.45f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = androidx.compose.animation.core.tween(900),
+            repeatMode = RepeatMode.Reverse,
+        ),
+        label = "dirty-pulse-alpha",
+    )
+
     val bg = if (active) MaterialTheme.colorScheme.surface
     else MaterialTheme.colorScheme.surfaceVariant
     Box(
         modifier = Modifier
-            .height(40.dp)
+            .height(48.dp)
             .background(bg)
             .clickable(
                 role = Role.Button,
@@ -105,22 +138,14 @@ private fun TabChip(
             modifier = Modifier.widthIn(max = 200.dp, min = 64.dp),
         ) {
             if (tab.isDirty) {
-                // v0.0.7 — gentle pulse on the dirty dot.
-                val transition = rememberInfiniteTransition(label = "dirty-pulse")
-                val alpha by transition.animateFloat(
-                    initialValue = 0.6f,
-                    targetValue = 1f,
-                    animationSpec = infiniteRepeatable(
-                        animation = androidx.compose.animation.core.tween(900),
-                        repeatMode = RepeatMode.Reverse,
-                    ),
-                    label = "dirty-pulse-alpha",
-                )
+                // v0.0.7 — gentle pulse on the dirty dot. The
+                // animation state is hoisted above this branch so the
+                // remember call is unconditional.
                 Box(
                     modifier = Modifier
                         .size(8.dp)
                         .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.primary.copy(alpha = alpha))
+                        .background(MaterialTheme.colorScheme.primary.copy(alpha = pulseAlpha))
                 )
                 Spacer(Modifier.width(8.dp))
             }
@@ -146,7 +171,7 @@ private fun TabChip(
                     imageVector = Icons.Filled.Close,
                     contentDescription = closeContentDescription,
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(16.dp),
+                    modifier = Modifier.size(20.dp),
                 )
             }
         }

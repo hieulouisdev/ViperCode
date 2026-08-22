@@ -84,6 +84,7 @@ import com.vipercode.ide.data.prefs.RecentFolders
 import com.vipercode.ide.data.prefs.SettingsRepository
 import com.vipercode.ide.data.prefs.SettingsRepository.SortBy
 import com.vipercode.ide.data.repo.FileRepository
+import com.vipercode.ide.data.repo.RepoResult
 import com.vipercode.ide.ui.components.FileExplorer
 import com.vipercode.ide.util.FileUtils
 import com.vipercode.ide.util.Strings
@@ -254,17 +255,24 @@ fun HomeScreen(
         if (uri != null) {
             scope.launch {
                 extractingZip = true
-                val node = runCatching {
+                // v0.0.8 — extractZipToProjects now returns
+                // RepoResult<FileNode>; unwrap explicitly so the
+                // compile error from v0.0.7 is fixed AND the user
+                // sees the actual error message on failure.
+                val result = runCatching {
                     repo.extractZipToProjects(uri)
                 }.getOrNull()
                 extractingZip = false
+                val node = (result as? RepoResult.Success)?.value
                 if (node != null) {
                     SettingsRepository.lastFolderUri.set(node.uri.toString())
                     RecentFolders.add(node.uri)
                     expanded = expanded + node.uri
                     userMessage = s.homeZipExtracted.format(node.name)
                 } else {
-                    userMessage = s.homeZipExtractFailed
+                    val reason = (result as? RepoResult.Failure)?.message
+                    userMessage = if (reason != null) "${s.homeZipExtractFailed}: $reason"
+                                  else s.homeZipExtractFailed
                 }
             }
         }

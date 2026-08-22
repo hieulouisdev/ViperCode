@@ -247,7 +247,11 @@ fun SettingsScreen(onBack: () -> Unit, onAbout: () -> Unit = {}) {
             ) {
                 Text(text = s.settingsAboutOpen, style = MaterialTheme.typography.bodyLarge)
                 Icon(
-                    imageVector = androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight,
+                    // v0.0.8 — KeyboardArrowRight is NOT an auto-mirrored
+                    // icon (the automirrored variant doesn't exist in
+                    // Material Icons Extended for BOM 2024.12.01). Use the
+                    // standard filled variant instead.
+                    imageVector = androidx.compose.material.icons.filled.KeyboardArrowRight,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

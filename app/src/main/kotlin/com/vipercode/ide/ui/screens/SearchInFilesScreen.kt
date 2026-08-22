@@ -10,9 +10,11 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -81,14 +83,22 @@ fun SearchInFilesScreen(
 
     // Debounced search — fire 350 ms after the user stops typing.
     LaunchedEffect(query, openFolder?.uri) {
-        if (query.isBlank() || openFolder == null) {
+        // v0.0.8 — capture the folder at the top of the effect
+        // so a folder-close between `delay` returning and
+        // `openFolder!!.uri` evaluating doesn't NPE.
+        val folder = openFolder ?: run {
+            results = emptyList()
+            searching = false
+            return@LaunchedEffect
+        }
+        if (query.isBlank()) {
             results = emptyList()
             searching = false
             return@LaunchedEffect
         }
         searching = true
         delay(350)
-        val hits = repo.searchInFiles(openFolder!!.uri, query)
+        val hits = repo.searchInFiles(folder.uri, query)
         results = hits
         searching = false
     }
@@ -153,7 +163,10 @@ fun SearchInFilesScreen(
                 }
             } else {
                 LazyColumn(modifier = Modifier.fillMaxSize()) {
-                    items(results, key = { it.uri.toString() + ":" + it.line + ":" + it.column }) { hit ->
+                    // v0.0.8 — include the result index in the key so
+                    // duplicate (uri, line, column) tuples don't crash
+                    // the LazyColumn with "Key X was already used".
+                    itemsIndexed(results) { idx, hit ->
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -164,7 +177,15 @@ fun SearchInFilesScreen(
                                         val result = repo.openFile(hit.uri)
                                         val tab = (result as? com.vipercode.ide.data.repo.RepoResult.Success)?.value
                                         if (tab != null) {
-                                            repo.updateTabCursor(tab.id, hit.line - 1, hit.column - 1)
+                                            // v0.0.8 — coerce negative values
+                                            // so cursor math doesn't crash on
+                                            // name-only hits where line/column
+                                            // are 0.
+                                            repo.updateTabCursor(
+                                                tab.id,
+                                                (hit.line - 1).coerceAtLeast(0),
+                                                (hit.column - 1).coerceAtLeast(0),
+                                            )
                                             onOpenFile(tab.id)
                                         }
                                     }

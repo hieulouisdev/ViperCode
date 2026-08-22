@@ -5,9 +5,10 @@ import android.net.Uri
 import com.vipercode.ide.data.model.EditorTab
 import com.vipercode.ide.data.model.FileNode
 import com.vipercode.ide.data.prefs.RecentFiles
-import com.vipercode.ide.data.prefs.SettingsRepository
+import com.vipercode.ide.data.prefs.RecentFolders
 import com.vipercode.ide.util.FileUtils
 import com.vipercode.ide.util.LanguageDetector
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -66,9 +67,9 @@ class FileRepository(private val appContext: Context) {
      */
     suspend fun openFolder(uri: Uri): RepoResult<FileNode> = withContext(Dispatchers.IO) {
         val doc = FileUtils.resolve(appContext, uri) ?: return@withContext
-            RepoResult.Failure<FileNode>("Cannot resolve folder — permission may have been revoked")
+            RepoResult.Failure("Cannot resolve folder — permission may have been revoked")
         if (!doc.isDirectory) return@withContext
-            RepoResult.Failure<FileNode>("Selected document is not a folder")
+            RepoResult.Failure("Selected document is not a folder")
         val root = FileNode(
             uri = uri,
             name = doc.name ?: displayNameForLocal(uri),
@@ -82,7 +83,7 @@ class FileRepository(private val appContext: Context) {
         refreshDirectory(uri)
         // v0.0.7 — track this folder as recent so the switch-folder
         // sheet picks it up.
-        com.vipercode.ide.data.prefs.RecentFolders.add(uri)
+        RecentFolders.add(uri)
         RepoResult.Success(root)
     }
 
@@ -110,15 +111,20 @@ class FileRepository(private val appContext: Context) {
             return@withContext RepoResult.Success(existing)
         }
         val doc = FileUtils.resolve(appContext, uri) ?: return@withContext
-            RepoResult.Failure<EditorTab>("Cannot resolve file — it may have been moved or deleted")
+            RepoResult.Failure("Cannot resolve file — it may have been moved or deleted")
         val name = doc.name ?: uri.lastPathSegment ?: "Untitled"
         val mime = doc.type
         val language = LanguageDetector.detect(name, mime)
-        val contentResult = runCatching { FileUtils.readText(appContext, uri) }
-        val content = contentResult.getOrElse {
-            return@withContext RepoResult.Failure<EditorTab>(
-                "Cannot read file: ${it.message ?: "unknown error"}",
-                it,
+        // v0.0.8 — rethrow CancellationException; previously runCatching
+        // swallowed it and broke structured concurrency.
+        val content = try {
+            FileUtils.readText(appContext, uri)
+        } catch (ce: CancellationException) {
+            throw ce
+        } catch (t: Throwable) {
+            return@withContext RepoResult.Failure(
+                "Cannot read file: ${t.message ?: "unknown error"}",
+                t,
             )
         }
         val size = if (doc.isDirectory) 0L else doc.length()
@@ -136,28 +142,38 @@ class FileRepository(private val appContext: Context) {
         _tabs.update { it + tab }
         _activeTabId.value = tab.id
         RecentFiles.add(uri)
-        if (truncated) {
-            RepoResult.Success(tab) // The screen surfaces a "truncated" hint.
-        } else {
-            RepoResult.Success(tab)
-        }
+        RepoResult.Success(tab)
     }
 
-    suspend fun openExternalFile(uri: Uri): RepoResult<EditorTab> {
+    suspend fun openExternalFile(uri: Uri): RepoResult<EditorTab> = withContext(Dispatchers.IO) {
+        // v0.0.8 — takePersistableUriPermission is synchronous IPC; do
+        // it on IO so the main thread never blocks. The previous
+        // implementation called it from the caller's dispatcher (Main
+        // by default), causing StrictMode violations.
         if (uri.toString().startsWith("content://")) {
-            runCatching {
+            try {
                 val flags = android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION or
                     android.content.Intent.FLAG_GRANT_WRITE_URI_PERMISSION
                 appContext.contentResolver.takePersistableUriPermission(uri, flags)
+            } catch (ce: CancellationException) {
+                throw ce
+            } catch (_: Throwable) {
+                // Permission may already be granted or unavailable —
+                // the openFile call below will surface the failure if
+                // it actually matters.
             }
-            runCatching {
+            try {
                 appContext.contentResolver.takePersistableUriPermission(
                     uri,
                     android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION,
                 )
+            } catch (ce: CancellationException) {
+                throw ce
+            } catch (_: Throwable) {
+                // Same as above — best-effort.
             }
         }
-        return openFile(uri)
+        openFile(uri)
     }
 
     /**
@@ -167,17 +183,21 @@ class FileRepository(private val appContext: Context) {
      */
     suspend fun saveTab(tabId: String): RepoResult<Unit> = withContext(Dispatchers.IO) {
         val tab = _tabs.value.firstOrNull { it.id == tabId } ?: return@withContext
-            RepoResult.Failure<Unit>("Tab not found: $tabId")
-        val result = runCatching {
+            RepoResult.Failure("Tab not found: $tabId")
+        // v0.0.8 — rethrow CancellationException so coroutine
+        // cancellation is preserved (previously runCatching swallowed
+        // it, breaking structured concurrency).
+        try {
             FileUtils.writeText(appContext, tab.uri, tab.content)
             _tabs.update { tabs ->
                 tabs.map { if (it.id == tabId) it.copy(originalContent = it.content) else it }
             }
+            RepoResult.Success(Unit)
+        } catch (ce: CancellationException) {
+            throw ce
+        } catch (t: Throwable) {
+            RepoResult.Failure("Save failed: ${t.message ?: "unknown error"}", t)
         }
-        result.fold(
-            onSuccess = { RepoResult.Success(Unit) },
-            onFailure = { RepoResult.Failure("Save failed: ${it.message ?: "unknown error"}", it) },
-        )
     }
 
     /** Auto-save hook — only writes if the tab is dirty. */
@@ -248,7 +268,9 @@ class FileRepository(private val appContext: Context) {
      */
     suspend fun extractZipToProjects(zipUri: Uri, suggestedName: String? = null): RepoResult<FileNode> =
         withContext(Dispatchers.IO) {
-            runCatching {
+            // v0.0.8 — rethrow CancellationException so a cancelled
+            // extraction doesn't get converted to a Failure.
+            try {
                 val dir = FileUtils.extractZipToProjects(appContext, zipUri, suggestedName)
                 val uri = android.net.Uri.fromFile(dir)
                 val root = FileNode(
@@ -262,12 +284,13 @@ class FileRepository(private val appContext: Context) {
                 )
                 _openFolder.value = root
                 refreshDirectory(uri)
-                com.vipercode.ide.data.prefs.RecentFolders.add(uri)
-                root
-            }.fold(
-                onSuccess = { RepoResult.Success(it) },
-                onFailure = { RepoResult.Failure("ZIP extraction failed: ${it.message ?: "unknown error"}", it) },
-            )
+                RecentFolders.add(uri)
+                RepoResult.Success(root)
+            } catch (ce: CancellationException) {
+                throw ce
+            } catch (t: Throwable) {
+                RepoResult.Failure("ZIP extraction failed: ${t.message ?: "unknown error"}", t)
+            }
         }
 
     suspend fun listExtractedProjects(): List<FileNode> = withContext(Dispatchers.IO) {
@@ -286,10 +309,16 @@ class FileRepository(private val appContext: Context) {
     }
 
     /**
-     * v0.0.7 — re-resolves the renamed DocumentFile and updates the
+     * v0.0.8 — re-resolves the renamed DocumentFile and updates the
      * tab's `uri` field to the new URI returned by SAF. This was a
      * critical bug in v0.0.6: after a rename, saves wrote to the
      * old URI which may not exist anymore.
+     *
+     * v0.0.8 fix: for `file://` URIs the old path no longer exists
+     * after File.renameTo, so re-resolving from the OLD uri returned
+     * null/!exists and the tab kept its stale URI. We now compute
+     * the new URI directly from the parent path + new name when the
+     * scheme is `file`, which is always correct.
      *
      * Returns true on success. The caller is responsible for surfacing
      * failure (e.g., a snackbar).
@@ -299,16 +328,26 @@ class FileRepository(private val appContext: Context) {
         val parent = _tree.value.entries.firstOrNull { (_, kids) -> kids.any { it.uri == uri } }?.key
         if (parent != null) refreshDirectory(parent)
         if (ok) {
-            // v0.0.7 — re-resolve the renamed DocumentFile to obtain
-            // the new URI (SAF may or may not change the URI on
-            // renameTo, depending on the provider). If the URI is
-            // unchanged, this is a no-op. If it changed, we update
-            // the tab's `uri` field so future saves hit the new path.
-            val newDoc = FileUtils.resolve(appContext, uri)
-            val newUri = if (newDoc != null && newDoc.exists()) {
-                val docUri = newDoc.uri
-                if (docUri != uri) docUri else uri
-            } else uri
+            // Compute the new URI. For `file://` schemes we can derive
+            // it from the parent path + new name (the old URI no
+            // longer resolves post-rename). For `content://` (SAF)
+            // we try re-resolving the (possibly-stable) old URI; if
+            // that fails we fall back to scanning the parent's
+            // refreshed children for the matching name.
+            val newUri = when (uri.scheme) {
+                "file" -> {
+                    val oldPath = uri.path ?: uri.toString()
+                    val parentPath = oldPath.substringBeforeLast('/', oldPath)
+                    val newPath = "$parentPath/$newName"
+                    Uri.fromFile(File(newPath))
+                }
+                "content" -> {
+                    val newDoc = FileUtils.resolve(appContext, uri)
+                    val docUri = newDoc?.takeIf { it.exists() }?.uri
+                    if (docUri != null && docUri != uri) docUri else uri
+                }
+                else -> uri
+            }
 
             _tabs.update { tabs ->
                 tabs.map {
@@ -324,7 +363,23 @@ class FileRepository(private val appContext: Context) {
         val parent = _tree.value.entries.firstOrNull { (_, kids) -> kids.any { it.uri == uri } }?.key
         if (parent != null) refreshDirectory(parent)
         if (ok) {
-            _tabs.update { tabs -> tabs.filterNot { it.uri == uri || it.uri.toString().startsWith(uri.toString() + "/") } }
+            // v0.0.8 — for SAF document URIs, path separators are
+            // URL-encoded as %2F inside the URI string, so a raw
+            // startsWith(uri + "/") misses children. Decode both
+            // sides before comparing; also check the literal raw
+            // form for file:// schemes (which DO use raw /).
+            val rawPrefix = uri.toString()
+            val decodedPrefix = Uri.decode(rawPrefix)
+            _tabs.update { tabs ->
+                tabs.filterNot { tab ->
+                    val raw = tab.uri.toString()
+                    val decoded = Uri.decode(raw)
+                    tab.uri == uri ||
+                        raw.startsWith(rawPrefix + "/") ||
+                        raw.startsWith(rawPrefix + "%2F") ||
+                        decoded.startsWith(decodedPrefix + "/")
+                }
+            }
             if (_activeTabId.value?.let { id -> _tabs.value.none { it.id == id } } == true) {
                 _activeTabId.value = _tabs.value.lastOrNull()?.id
             }

@@ -327,8 +327,12 @@ object SyntaxHighlighter {
         // multiple lines. The previous single-line scan terminated at
         // the first '\n', mis-highlighting the rest of the string body
         // as code.
-        if (language == Language.PYTHON) {
-            val triple = "$quote$quote$quote"
+        //
+        // v0.0.8 — Kotlin raw strings ("""...""") also span multiple
+        // lines, so they share the same triple-quote scan path.
+        val tripleQuoted = language == Language.PYTHON || language == Language.KOTLIN
+        if (tripleQuoted && quote == '"') {
+            val triple = "\"\"\""
             if (src.startsWith(triple, start)) {
                 var i = start + 3
                 while (i < src.length) {
@@ -341,25 +345,37 @@ object SyntaxHighlighter {
         var i = start + 1
         while (i < src.length) {
             when (src[i]) {
-                '\\' -> i += 2
+                // v0.0.8 — clamp to src.length on escape-skip; the
+                // previous `i += 2` could push past the end and then
+                // `src[i]` below would throw
+                // StringIndexOutOfBoundsException when the string ended
+                // with a lone backslash (e.g. `"foo\`).
+                '\\' -> {
+                    i += 2
+                    if (i > src.length) return src.length
+                }
                 quote -> return i + 1
                 '\n' -> return i
                 else -> i++
             }
         }
-        return i
+        return i.coerceAtMost(src.length)
     }
 
     private fun scanBacktick(src: String, start: Int): Int {
         var i = start + 1
         while (i < src.length) {
             when (src[i]) {
-                '\\' -> i += 2
+                // v0.0.8 — same clamp as scanString.
+                '\\' -> {
+                    i += 2
+                    if (i > src.length) return src.length
+                }
                 '`' -> return i + 1
                 else -> i++
             }
         }
-        return i
+        return i.coerceAtMost(src.length)
     }
 
     private fun scanNumber(src: String, start: Int): Int {

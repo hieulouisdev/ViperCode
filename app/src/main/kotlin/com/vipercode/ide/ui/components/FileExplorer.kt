@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -160,6 +161,10 @@ private fun FlatFileRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            // v0.0.8 — fixed row height so folder rows and file rows
+            // are the same height (was folder row 48dp from the
+            // IconButton, file row ~32dp from text + spacer).
+            .heightIn(min = 48.dp)
             .combinedClickable(
                 onClick = {
                     if (node.isDirectory) onToggleFolder(node.uri)
@@ -179,17 +184,22 @@ private fun FlatFileRow(
             ) {
                 Icon(
                     imageVector = Icons.Filled.ChevronRight,
-                    contentDescription = null,
+                    // v0.0.8 — contentDescription for accessibility.
+                    contentDescription = "Toggle folder",
                     modifier = Modifier.rotate(rotate),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
         } else {
-            Spacer(Modifier.width(28.dp))
+            // v0.0.8 — match the folder IconButton's 48dp width so
+            // the file-type icons below align with folder icons.
+            // (was 28dp, causing file icons to appear 20dp further
+            // left than folder icons at the same depth.)
+            Spacer(Modifier.width(48.dp))
         }
         Icon(
             imageVector = if (node.isDirectory) Icons.Filled.Folder else iconFor(node),
-            contentDescription = null,
+            contentDescription = if (node.isDirectory) "Folder" else "File",
             tint = if (node.isDirectory) MaterialTheme.colorScheme.primary
             else MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.size(18.dp),
