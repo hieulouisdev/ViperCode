@@ -527,10 +527,12 @@ object CompletionProvider {
         Snippet("function", "function name() {\n    \n}", "function"),
         Snippet("class", "class Name {\n    \n}", "class"),
         Snippet("if", "if (condition) {\n    \n}", "if statement"),
-        Snippet("for", "for ($i = 0; $i < ; $i++) {\n    \n}", "for loop"),
-        Snippet("foreach", "foreach ($items as $item) {\n    \n}", "foreach loop"),
+        // v0.0.8 — escape '$' as ${'$'} so Kotlin string interpolation
+        // doesn't treat PHP variable syntax as a Kotlin variable ref.
+        Snippet("for", "for (${'$'}i = 0; ${'$'}i < ; ${'$'}i++) {\n    \n}", "for loop"),
+        Snippet("foreach", "foreach (${'$'}items as ${'$'}item) {\n    \n}", "foreach loop"),
         Snippet("while", "while (condition) {\n    \n}", "while loop"),
-        Snippet("try", "try {\n    \n} catch (Exception $e) {\n    \n}", "try/catch"),
+        Snippet("try", "try {\n    \n} catch (Exception ${'$'}e) {\n    \n}", "try/catch"),
     )
     private val RUBY_SNIPPETS = listOf(
         Snippet("def", "def name\n    \nend", "method"),
