@@ -31,6 +31,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
@@ -78,10 +79,12 @@ fun FileExplorer(
         EmptyWorkspace(modifier = modifier)
         return
     }
-    // Flatten the visible portion of the tree into a list. Only
-    // expanded directories contribute their children; collapsed
-    // directories contribute only themselves.
-    val flatRows = flattenTree(root, children, expanded)
+    // v0.0.7 — flattenTree is now remembered so it isn't recomputed
+    // on every recomposition. Previously every keystroke in the
+    // editor rebuilt the list.
+    val flatRows = remember(root, children, expanded) {
+        flattenTree(root, children, expanded)
+    }
     val s = Strings.get()
 
     LazyColumn(modifier = modifier.fillMaxSize()) {
@@ -149,6 +152,11 @@ private fun FlatFileRow(
 ) {
     val node = row.node
     val rotate by animateFloatAsState(if (isExpanded) 90f else 0f, label = "chevron")
+    // v0.0.7 — cache humanSize per node so it isn't recomputed
+    // on every recomposition.
+    val sizeText = remember(node.size) {
+        if (!node.isDirectory && node.size > 0) FileUtils.humanSize(node.size) else null
+    }
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -163,9 +171,11 @@ private fun FlatFileRow(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (node.isDirectory) {
+            // v0.0.7 — IconButton uses default 48dp tap target
+            // (was size(20.dp), below the Material 3 minimum).
             IconButton(
                 onClick = { onToggleFolder(node.uri) },
-                modifier = Modifier.size(20.dp),
+                modifier = Modifier.size(48.dp),
             ) {
                 Icon(
                     imageVector = Icons.Filled.ChevronRight,
@@ -175,9 +185,8 @@ private fun FlatFileRow(
                 )
             }
         } else {
-            Spacer(Modifier.width(20.dp))
+            Spacer(Modifier.width(28.dp))
         }
-        Spacer(Modifier.width(8.dp))
         Icon(
             imageVector = if (node.isDirectory) Icons.Filled.Folder else iconFor(node),
             contentDescription = null,
@@ -194,9 +203,9 @@ private fun FlatFileRow(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
-            if (!node.isDirectory && node.size > 0) {
+            if (sizeText != null) {
                 Text(
-                    text = FileUtils.humanSize(node.size),
+                    text = sizeText,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontFamily = FontFamily.Monospace,

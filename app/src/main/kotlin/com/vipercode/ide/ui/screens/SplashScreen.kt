@@ -7,6 +7,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -28,6 +29,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -51,8 +53,12 @@ fun SplashScreen(onContinue: () -> Unit) {
     val activeLanguage by Strings.active.collectAsState()
     val s = Strings.get()
 
+    // v0.0.7 — splash is skippable: tap the screen to continue
+    // immediately. Delay reduced from 1100 ms to 800 ms (combined
+    // with the 600 ms system splash, total splash time is now
+    // ~1.4 s instead of 1.7 s).
     LaunchedEffect(Unit) {
-        delay(1100)
+        delay(800)
         onContinue()
     }
 
@@ -75,7 +81,11 @@ fun SplashScreen(onContinue: () -> Unit) {
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(ViperDark),
+            .background(ViperDark)
+            .pointerInput(Unit) {
+                // v0.0.7 — tap-to-skip the splash.
+                detectTapGestures(onTap = { onContinue() })
+            },
         contentAlignment = Alignment.Center,
     ) {
         Column(

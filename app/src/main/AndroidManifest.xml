@@ -7,7 +7,8 @@
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"
         android:maxSdkVersion="29" />
     <uses-permission android:name="android.permission.INTERNET" />
-    <uses-permission android:name="android.permission.VIBRATE" />
+    <!-- v0.0.7 — removed unused VIBRATE permission (no Vibrator calls
+         anywhere in the codebase). -->
 
     <application
         android:name=".ViperCodeApp"
@@ -19,7 +20,7 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.ViperCode.Splash"
-        android:requestLegacyExternalStorage="true"
+        android:requestLegacyExternalStorage="false"
         tools:targetApi="34">
 
         <activity

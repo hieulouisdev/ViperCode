@@ -56,11 +56,25 @@ fun ViperNavHost(
     // Open a file URI that arrived via ACTION_VIEW (or from the splash's
     // "continue" gesture). Each new URI re-keys the effect so subsequent
     // invocations from MainActivity.onNewIntent are honoured.
+    //
+    // v0.0.7 — when an external file is opened via ACTION_VIEW, we
+    // now navigate to the EDITOR route (not HOME) so the user
+    // immediately sees the just-opened file in the editor.
     LaunchedEffect(externalFileUri) {
         val uri = externalFileUri ?: return@LaunchedEffect
-        repo.openExternalFile(uri)
-        navController.navigate(Routes.HOME) {
-            launchSingleTop = true
+        val tab = repo.openExternalFile(uri)
+        val targetTabId = (tab as? com.vipercode.ide.data.repo.RepoResult.Success)?.value?.id
+        if (targetTabId != null) {
+            navController.navigate(Routes.EDITOR.replace("{tabId}", targetTabId)) {
+                launchSingleTop = true
+            }
+        } else {
+            // Fall back to Home if open failed — the user will see an
+            // empty workspace but the app doesn't get stuck on the
+            // splash screen.
+            navController.navigate(Routes.HOME) {
+                launchSingleTop = true
+            }
         }
         onExternalUriConsumed()
     }
@@ -110,7 +124,10 @@ fun ViperNavHost(
             )
         }
         composable(Routes.SETTINGS) {
-            SettingsScreen(onBack = { navController.popBackStack() })
+            SettingsScreen(
+                onBack = { navController.popBackStack() },
+                onAbout = { navController.navigate(Routes.ABOUT) },
+            )
         }
         composable(Routes.ABOUT) {
             AboutScreen(onBack = { navController.popBackStack() })
@@ -119,9 +136,10 @@ fun ViperNavHost(
             SearchInFilesScreen(
                 onBack = { navController.popBackStack() },
                 onOpenFile = { tabId ->
-                    navController.navigate(Routes.EDITOR.replace("{tabId}", tabId)) {
-                        popUpTo(Routes.HOME)
-                    }
+                    // v0.0.7 — don't popUpTo(HOME); just navigate
+                    // to the editor on top of the search. The back
+                    // stack now: Home → Search → Editor → (back) → Search.
+                    navController.navigate(Routes.EDITOR.replace("{tabId}", tabId))
                 },
             )
         }
@@ -129,9 +147,7 @@ fun ViperNavHost(
             QuickOpenScreen(
                 onBack = { navController.popBackStack() },
                 onOpenFile = { tabId ->
-                    navController.navigate(Routes.EDITOR.replace("{tabId}", tabId)) {
-                        popUpTo(Routes.HOME)
-                    }
+                    navController.navigate(Routes.EDITOR.replace("{tabId}", tabId))
                 },
             )
         }

@@ -261,7 +261,7 @@ fun HomeScreen(
                 if (node != null) {
                     SettingsRepository.lastFolderUri.set(node.uri.toString())
                     RecentFolders.add(node.uri)
-                    expanded = setOf(node.uri)
+                    expanded = expanded + node.uri
                     userMessage = s.homeZipExtracted.format(node.name)
                 } else {
                     userMessage = s.homeZipExtractFailed
@@ -341,7 +341,7 @@ fun HomeScreen(
                         Icon(Icons.Filled.SwapHoriz, contentDescription = s.homeSwitchFolder)
                     }
                     IconButton(onClick = { menuOpen = true }) {
-                        Icon(Icons.Filled.MoreVert, contentDescription = "Menu")
+                        Icon(Icons.Filled.MoreVert, contentDescription = s.commonMenu)
                     }
                     DropdownMenu(
                         expanded = menuOpen,
@@ -501,8 +501,11 @@ fun HomeScreen(
                         s = s,
                         onOpen = { uri ->
                             scope.launch {
-                                val tab = repo.openFile(uri)
+                                // v0.0.7 — openFile now returns RepoResult.
+                                val result = repo.openFile(uri)
+                                val tab = (result as? com.vipercode.ide.data.repo.RepoResult.Success)?.value
                                 if (tab != null) onOpenFile(tab.id)
+                                else userMessage = s.editorOpenFileFailed
                             }
                         },
                         onClear = { RecentFiles.clear() },
@@ -519,8 +522,11 @@ fun HomeScreen(
                     },
                     onOpenFile = { node ->
                         scope.launch {
-                            val tab = repo.openFile(node.uri)
+                            // v0.0.7 — openFile now returns RepoResult.
+                            val result = repo.openFile(node.uri)
+                            val tab = (result as? com.vipercode.ide.data.repo.RepoResult.Success)?.value
                             if (tab != null) onOpenFile(tab.id)
+                            else userMessage = s.editorOpenFileFailed
                         }
                     },
                     onLongPress = { node -> longPressTarget = node },
@@ -558,15 +564,31 @@ fun HomeScreen(
                 s = s,
                 currentUri = openFolder?.uri,
                 workspaceUri = remember { Uri.fromFile(FileUtils.localWorkspaceRoot(context)) },
-                projectUris = remember { FileUtils.listExtractedProjects(context).map { Uri.fromFile(it) } },
+                // v0.0.7 — re-key on `showSwitchFolder` so the project
+                // list is refreshed every time the sheet opens. The
+                // previous `remember { ... }` cached the list forever,
+                // so a freshly-extracted ZIP didn't show up until the
+                // app was restarted.
+                projectUris = remember(showSwitchFolder, extractingZip) {
+                    FileUtils.listExtractedProjects(context).map { Uri.fromFile(it) }
+                },
                 recentUris = recentFolderUris,
                 onPick = { uri ->
                     scope.launch {
                         SettingsRepository.lastFolderUri.set(uri.toString())
-                        repo.openFolder(uri)
-                        repo.refreshDirectory(uri)
-                        expanded = setOf(uri)
-                        RecentFolders.add(uri)
+                        val result = repo.openFolder(uri)
+                        // v0.0.7 — `openFolder` now returns RepoResult;
+                        // if it failed (e.g., SAF permission revoked)
+                        // surface an error message. Previously a silent
+                        // failure left the user with an empty workspace.
+                        // `refreshDirectory` is now called inside
+                        // `openFolder`, so we don't call it again here.
+                        if (result is com.vipercode.ide.data.repo.RepoResult.Failure) {
+                            userMessage = s.editorOpenFolderFailed
+                        } else {
+                            expanded = expanded + uri
+                            RecentFolders.add(uri)
+                        }
                     }
                     showSwitchFolder = false
                 },
@@ -596,8 +618,11 @@ fun HomeScreen(
                     scope.launch {
                         val node = repo.createFile(target.parentUri, name)
                         if (node != null) {
-                            val tab = repo.openFile(node.uri)
+                            // v0.0.7 — openFile now returns RepoResult.
+                            val result = repo.openFile(node.uri)
+                            val tab = (result as? com.vipercode.ide.data.repo.RepoResult.Success)?.value
                             if (tab != null) onOpenFile(tab.id)
+                            else userMessage = s.editorOpenFileFailed
                         }
                     }
                 }

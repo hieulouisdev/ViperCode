@@ -18,6 +18,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -121,15 +122,34 @@ fun SearchInFilesScreen(
             )
             HorizontalDivider()
             if (searching) {
+                // v0.0.7 — replace plain "…" text with a proper
+                // Material 3 CircularProgressIndicator + loading label.
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text("…", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        CircularProgressIndicator()
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            text = s.commonLoading,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
                 }
             } else if (results.isEmpty() && query.isNotBlank()) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text(
-                        text = s.commonNoResults,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(
+                            imageVector = Icons.Filled.Search,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+                            modifier = Modifier.size(56.dp),
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            text = s.commonNoResults,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                 }
             } else {
                 LazyColumn(modifier = Modifier.fillMaxSize()) {
@@ -139,7 +159,10 @@ fun SearchInFilesScreen(
                                 .fillMaxWidth()
                                 .clickable {
                                     scope.launch {
-                                        val tab = repo.openFile(hit.uri)
+                                        // v0.0.7 — openFile now returns
+                                        // RepoResult; unwrap on the caller side.
+                                        val result = repo.openFile(hit.uri)
+                                        val tab = (result as? com.vipercode.ide.data.repo.RepoResult.Success)?.value
                                         if (tab != null) {
                                             repo.updateTabCursor(tab.id, hit.line - 1, hit.column - 1)
                                             onOpenFile(tab.id)
@@ -171,14 +194,15 @@ fun SearchInFilesScreen(
                                         fontFamily = FontFamily.Monospace,
                                         fontSize = 11.sp,
                                     )
+                                } else {
+                                    // v0.0.7 — distinguish name-match hits
+                                    // from content-match hits visually.
+                                    Text(
+                                        text = s.commonMatchInFile.format(1, hit.fileName),
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.primary,
+                                    )
                                 }
-                            }
-                            if (!hit.matchedInName) {
-                                Text(
-                                    text = s.commonMatchInFile.format(1, hit.fileName),
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.primary,
-                                )
                             }
                         }
                         HorizontalDivider()

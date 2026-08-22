@@ -5,8 +5,10 @@
 # For more details, see
 #   http://developer.android.com/guide/developing/tools/proguard.html
 
-# Keep Compose runtime metadata
--keep class androidx.compose.** { *; }
+# v0.0.7 — removed `-keep class androidx.compose.** { *; }`.
+# Compose ships its own consumer ProGuard rules; the blanket keep
+# was bloating the release APK by preventing R8 from shrinking
+# unused Compose code. The same applies to DataStore below.
 
 # Kotlin metadata
 -keepattributes *Annotation*, InnerClasses, Signature, Exceptions, EnclosingMethod
@@ -27,7 +29,4 @@
 
 # DocumentFile is referenced via reflection by AndroidX
 -keep class androidx.documentfile.provider.** { *; }
-
-# DataStore — keep internal serialization
--keep class androidx.datastore.** { *; }
 

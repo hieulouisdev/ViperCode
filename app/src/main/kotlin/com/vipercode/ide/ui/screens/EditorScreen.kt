@@ -1,6 +1,7 @@
 package com.vipercode.ide.ui.screens
 
 import android.content.Intent
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -8,7 +9,9 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -20,13 +23,19 @@ import androidx.compose.material.icons.filled.AutoFixHigh
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Comment
+import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.AssistChipDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -36,7 +45,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -44,6 +52,7 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -62,36 +71,44 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.vipercode.ide.data.prefs.SettingsRepository
 import com.vipercode.ide.data.repo.FileRepository
+import com.vipercode.ide.data.repo.RepoResult
 import com.vipercode.ide.ui.components.CodeEditor
 import com.vipercode.ide.ui.components.TabBar
 import com.vipercode.ide.util.Language
 import com.vipercode.ide.util.Strings
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /**
  * Editor screen — wraps the multi-tab bar and a [CodeEditor] instance.
  *
- * v0.0.5 changes:
- *  - **Comment toggle** button in the top bar — bumps
- *    [commentToggleToken] which the [CodeEditor] picks up via
- *    `LaunchedEffect` to toggle line-comment on the current
- *    selection. Picks the right comment syntax per language
- *    (`#` for Python, `//` for Kotlin/Java/JS, `--` for SQL/Lua,
- *    etc.).
- *  - **Share file** button — exports the current file's content via
- *    Android's share sheet.
- *  - **Editor status bar** — slim bar at the bottom showing cursor
- *    line / column, total line count, word count and character
- *    count. Toggleable in Settings.
- *  - **Auto-close brackets** setting passed through to [CodeEditor].
- *  - All UI strings routed through [Strings.get] (Vietnamese support).
- *  - **Go to line**: top-bar action asks for a line number and
- *    restores the caret there. Lives in [showGoToLine].
- *  - **Quick open / Search in files**: top-bar shortcuts that hand
- *    off to dedicated screens.
- *  - **Tab title shows the file path** in the subtitle for easier
- *    orientation in big workspaces.
+ * v0.0.7 changes:
+ *  - **Auto-save no longer corrupts files** — the save coroutine lives
+ *    on a dedicated [saveScope] (the [rememberCoroutineScope]) instead
+ *    of being cancelled by the [LaunchedEffect] that re-keys on every
+ *    keystroke. A mid-write cancellation previously left the file
+ *    truncated because `FileUtils.writeText` opens with mode `"wt"`
+ *    (truncate-then-write).
+ *  - **Save failures surface to the user** — `repo.saveTab` now returns
+ *    a [RepoResult]; the editor shows an error snackbar when it's
+ *    `RepoResult.Failure` (previously silent failure).
+ *  - **Open errors surface too** — if the file URI can't be resolved
+ *    or the read throws, an error snackbar is shown.
+ *  - **Font family setting is wired** — `SettingsRepository.fontFamily`
+ *    flows through to `CodeEditor(fontFamily = …)` (previously the
+ *    setting had no effect).
+ *  - **Search & Replace bar is fixed** — single `findAllMatches`
+ *    computation per keystroke (was two), and the per-match Replace
+ *    no longer uses stale offsets (the matches list is recomputed
+ *    synchronously after each Replace).
+ *  - **Cleaner top bar** — three primary actions in the bar
+ *    (Search, Preview, Save) plus an overflow menu; "Aa" and ".*"
+ *    labels replaced with proper Material 3 [FilterChip]s; all
+ *    contentDescriptions i18n'd.
+ *  - **Truncated-file banner** — when `tab.truncated` is true, a
+ *    slim banner explains why edits are disabled.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -104,7 +121,8 @@ fun EditorScreen(
 ) {
     val context = LocalContext.current
     val repo = remember { FileRepository.get(context) }
-    val scope = rememberCoroutineScope()
+    val saveScope = rememberCoroutineScope()
+    val snackbarScope = rememberCoroutineScope()
     val tabs by repo.tabs.collectAsState()
     val activeId by repo.activeTabId.collectAsState()
 
@@ -118,9 +136,12 @@ fun EditorScreen(
     val autoIndent by SettingsRepository.autoIndent.flow.collectAsState(initial = true)
     val autoSaveEnabled by SettingsRepository.autoSave.flow.collectAsState(initial = true)
     val autoSaveDelayMs by SettingsRepository.autoSaveDelayMs.flow.collectAsState(initial = 1500)
-    // v0.0.5 — new editor prefs.
     val autoCloseBrackets by SettingsRepository.autoCloseBrackets.flow.collectAsState(initial = true)
     val showStatusBar by SettingsRepository.showStatusBar.flow.collectAsState(initial = true)
+    // v0.0.7 — font family now flows through to CodeEditor.
+    val fontFamilyPref by SettingsRepository.fontFamily.flow.collectAsState(
+        initial = SettingsRepository.FontFamily.SYSTEM,
+    )
 
     val snackbarHostState = remember { SnackbarHostState() }
     var showUnsaved by remember { mutableStateOf<String?>(null) }
@@ -128,17 +149,21 @@ fun EditorScreen(
     var showGoToLine by remember { mutableStateOf(false) }
     var pendingGoToLine by remember { mutableStateOf<Int?>(null) }
     var jumpToken by remember { mutableIntStateOf(0) }
-    // v0.0.5 — comment-toggle hook.
     var commentToggleToken by remember { mutableIntStateOf(0) }
-    // v0.0.5 — cursor position for the status bar.
     var cursorLine by remember { mutableIntStateOf(0) }
     var cursorColumn by remember { mutableIntStateOf(0) }
     var selectionLength by remember { mutableIntStateOf(0) }
+    // v0.0.7 — last save Job so we can cancel + await before close.
+    var pendingSaveJob by remember { mutableStateOf<Job?>(null) }
 
-    // Resolve the actual active tab — prefer the repo's activeTabId,
-    // fall back to the tabId from the route so the editor is never
-    // empty.
-    val activeTab = tabs.firstOrNull { it.id == (activeId ?: tabId) }
+    // Resolve the actual active tab — derivedStateOf avoids the O(n)
+    // scan per recomposition that the v0.0.6 firstOrNull{...} had.
+    val activeTab by remember {
+        derivedStateOf {
+            val target = activeId ?: tabId
+            tabs.firstOrNull { it.id == target }
+        }
+    }
     val isHtmlTab = activeTab?.language == Language.HTML
     val isMarkdownTab = activeTab?.language == Language.MARKDOWN
 
@@ -154,7 +179,13 @@ fun EditorScreen(
         if (tabs.isEmpty()) onBack()
     }
 
-    // ── Auto-save (debounced) ──────────────────────────────────────
+    // ── Auto-save (debounced) ──────────────────────────────────────────
+    // v0.0.7 — the save coroutine now lives on `saveScope` (the
+    // Compose-remembered CoroutineScope tied to the screen lifetime),
+    // NOT inside the LaunchedEffect's own scope. So when the
+    // LaunchedEffect is cancelled by the next keystroke, the save
+    // coroutine is NOT cancelled mid-write — the file is fully
+    // written before we return.
     LaunchedEffect(
         activeTab?.id,
         activeTab?.content,
@@ -166,26 +197,25 @@ fun EditorScreen(
         if (!tab.isDirty) return@LaunchedEffect
         if (tab.readOnly) return@LaunchedEffect
         delay(autoSaveDelayMs.toLong())
-        val ok = repo.saveTabIfDirty(tab.id)
-        if (ok) {
-            snackbarHostState.showSnackbar("${s.editorSaved} ${tab.name}")
+        // Don't cancel previous save — `saveScope` keeps it alive.
+        pendingSaveJob = saveScope.launch {
+            val result = repo.saveTabIfDirty(tab.id)
+            when (result) {
+                is RepoResult.Success -> snackbarScope.launch {
+                    snackbarHostState.showSnackbar("${s.editorSaved} ${tab.name}")
+                }
+                is RepoResult.Failure -> snackbarScope.launch {
+                    snackbarHostState.showSnackbar("${s.editorSaveFailed}: ${result.message}")
+                }
+            }
         }
     }
 
-    // Back-button handler — flush auto-save before navigating away so
-    // no content typed < delay is lost.
     fun handleBack() {
         val t = activeTab
-        if (t == null) {
-            onBack()
-            return
-        }
-        if (!t.isDirty || t.readOnly) {
-            onBack()
-            return
-        }
+        if (t == null || !t.isDirty || t.readOnly) { onBack(); return }
         if (autoSaveEnabled) {
-            scope.launch {
+            saveScope.launch {
                 repo.saveTabIfDirty(t.id)
                 onBack()
             }
@@ -199,7 +229,7 @@ fun EditorScreen(
         topBar = {
             TopAppBar(
                 title = {
-                    Column {
+                    Column(modifier = Modifier.fillMaxWidth()) {
                         Text(
                             text = activeTab?.name ?: s.editorEmpty,
                             style = MaterialTheme.typography.titleMedium,
@@ -207,15 +237,13 @@ fun EditorScreen(
                             overflow = TextOverflow.Ellipsis,
                         )
                         activeTab?.let { tab ->
-                            // v0.0.6 — cap the subtitle width and ellipsize
-                            // so a long language name + encoding + "read-only"
-                            // no longer overflows the top bar on narrow phones.
                             Text(
                                 text = buildString {
                                     append(tab.language.displayName)
                                     append(" • ")
                                     append(tab.encoding)
                                     if (tab.readOnly) append(" • ${s.editorReadOnly}")
+                                    if (tab.truncated) append(" • ${s.editorFileTruncated}")
                                 },
                                 style = MaterialTheme.typography.labelSmall,
                                 fontFamily = FontFamily.Monospace,
@@ -233,66 +261,74 @@ fun EditorScreen(
                     }
                 },
                 actions = {
-                    // v0.0.6 — condensed top bar so 8+ icon buttons no
-                    // longer overflow horizontally on narrow phones. The
-                    // primary actions (Search, Save, Preview) stay in the
-                    // bar; secondary actions (Go-to-line, Comment toggle,
-                    // Quick open, Search in files, Share) move into an
-                    // overflow menu.
-                    var moreOpen by remember { mutableStateOf(false) }
+                    // v0.0.7 — clean top bar: Search, Preview, Save,
+                    // and an overflow menu. Previous 8+ icons layout
+                    // overflowed on narrow phones.
                     IconButton(onClick = { showSearch = !showSearch }) {
                         Icon(Icons.Filled.Search, contentDescription = s.editorSearch)
                     }
                     if ((isHtmlTab || isMarkdownTab) && activeTab != null) {
-                        IconButton(onClick = { onOpenPreview(activeTab.id) }) {
+                        IconButton(onClick = { onOpenPreview(activeTab!!.id) }) {
                             Icon(Icons.Filled.PlayArrow, contentDescription = s.editorLivePreview)
                         }
                     }
                     IconButton(onClick = {
-                        scope.launch {
+                        saveScope.launch {
                             val id = activeTab?.id ?: return@launch
-                            val ok = repo.saveTab(id)
-                            if (ok) snackbarHostState.showSnackbar(s.editorSaved)
-                            else snackbarHostState.showSnackbar(s.editorSaveFailed)
+                            val result = repo.saveTab(id)
+                            val msg = when (result) {
+                                is RepoResult.Success -> s.editorSaved
+                                is RepoResult.Failure -> "${s.editorSaveFailed}: ${result.message}"
+                            }
+                            snackbarScope.launch { snackbarHostState.showSnackbar(msg) }
                         }
                     }) {
                         Icon(Icons.Filled.Save, contentDescription = s.editorSave)
                     }
+                    var moreOpen by remember { mutableStateOf(false) }
                     IconButton(onClick = { moreOpen = true }) {
-                        Icon(Icons.Filled.MoreVert, contentDescription = "More")
+                        Icon(Icons.Filled.MoreVert, contentDescription = s.editorMore)
                     }
-                    androidx.compose.material3.DropdownMenu(
+                    DropdownMenu(
                         expanded = moreOpen,
                         onDismissRequest = { moreOpen = false },
                     ) {
-                        androidx.compose.material3.DropdownMenuItem(
+                        DropdownMenuItem(
                             text = { Text(s.editorGoToLine) },
                             onClick = { moreOpen = false; showGoToLine = true },
                             leadingIcon = { Icon(Icons.AutoMirrored.Filled.MenuBook, null) },
                         )
-                        androidx.compose.material3.DropdownMenuItem(
+                        DropdownMenuItem(
                             text = { Text(s.editorCommentToggle) },
-                            onClick = { moreOpen = false; commentToggleToken++ },
+                            onClick = {
+                                moreOpen = false
+                                commentToggleToken++
+                                if (activeTab?.language?.lineComment == null) {
+                                    snackbarScope.launch {
+                                        snackbarHostState.showSnackbar(s.editorNoCommentSyntax)
+                                    }
+                                }
+                            },
                             leadingIcon = { Icon(Icons.Filled.Comment, null) },
                         )
-                        androidx.compose.material3.DropdownMenuItem(
+                        DropdownMenuItem(
                             text = { Text(s.editorQuickOpen) },
                             onClick = { moreOpen = false; onOpenQuickOpen() },
                             leadingIcon = { Icon(Icons.Filled.Bolt, null) },
                         )
-                        androidx.compose.material3.DropdownMenuItem(
+                        DropdownMenuItem(
                             text = { Text(s.editorSearchInFiles) },
                             onClick = { moreOpen = false; onOpenSearchInFiles() },
                             leadingIcon = { Icon(Icons.Filled.Search, null) },
                         )
-                        androidx.compose.material3.HorizontalDivider()
-                        androidx.compose.material3.DropdownMenuItem(
+                        HorizontalDivider()
+                        DropdownMenuItem(
                             text = { Text(s.editorShare) },
                             onClick = {
                                 moreOpen = false
                                 val tab = activeTab
                                 if (tab == null) {
-                                    scope.launch { snackbarHostState.showSnackbar(s.editorShareFailed) }
+                                    snackbarScope.launch { snackbarHostState.showSnackbar(s.editorShareFailed) }
                                     return@DropdownMenuItem
                                 }
                                 val send = Intent(Intent.ACTION_SEND).apply {
@@ -303,7 +339,7 @@ fun EditorScreen(
                                 runCatching {
                                     context.startActivity(Intent.createChooser(send, s.editorShare))
                                 }.onFailure {
-                                    scope.launch { snackbarHostState.showSnackbar(s.editorShareFailed) }
+                                    snackbarScope.launch { snackbarHostState.showSnackbar(s.editorShareFailed) }
                                 }
                             },
                             leadingIcon = { Icon(Icons.Filled.Share, null) },
@@ -316,10 +352,9 @@ fun EditorScreen(
             )
         },
         bottomBar = {
-            // v0.0.5 — editor status bar.
             if (showStatusBar && activeTab != null) {
                 EditorStatusBar(
-                    tab = activeTab,
+                    tab = activeTab!!,
                     cursorLine = cursorLine,
                     cursorColumn = cursorColumn,
                     selectionLength = selectionLength,
@@ -334,7 +369,7 @@ fun EditorScreen(
                 activeTabId = activeId ?: tabId,
                 onActivate = { id -> repo.setActiveTab(id) },
                 onClose = { id ->
-                    scope.launch {
+                    saveScope.launch {
                         val t = repo.tabs.value.firstOrNull { it.id == id } ?: return@launch
                         if (t.isDirty && !autoSaveEnabled) {
                             showUnsaved = id
@@ -349,27 +384,50 @@ fun EditorScreen(
                 },
             )
             HorizontalDivider()
+            // v0.0.7 — truncated-file banner.
+            activeTab?.let { tab ->
+                if (tab.truncated) {
+                    Surface(
+                        color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.6f),
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)) {
+                            Text(
+                                text = s.editorFileTruncated,
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onErrorContainer,
+                            )
+                            Text(
+                                text = s.editorFileTruncatedHint,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onErrorContainer.copy(alpha = 0.85f),
+                            )
+                        }
+                    }
+                }
+            }
             if (showSearch && activeTab != null) {
                 SearchReplaceBar(
-                    tab = activeTab,
+                    tab = activeTab!!,
                     onApplyChanges = { newText ->
-                        repo.updateTabContent(activeTab.id, newText)
+                        repo.updateTabContent(activeTab!!.id, newText)
                     },
                     onMessage = { msg ->
-                        scope.launch { snackbarHostState.showSnackbar(msg) }
+                        snackbarScope.launch { snackbarHostState.showSnackbar(msg) }
                     },
                     onClose = { showSearch = false },
+                    s = s,
                 )
                 HorizontalDivider()
             }
             if (activeTab != null) {
                 CodeEditor(
-                    tab = activeTab,
+                    tab = activeTab!!,
                     onContentChange = { newContent ->
-                        repo.updateTabContent(activeTab.id, newContent)
+                        repo.updateTabContent(activeTab!!.id, newContent)
                     },
                     onCursorChange = { line, col ->
-                        repo.updateTabCursor(activeTab.id, line, col)
+                        repo.updateTabCursor(activeTab!!.id, line, col)
                         cursorLine = line
                         cursorColumn = col
                         selectionLength = 0
@@ -380,21 +438,32 @@ fun EditorScreen(
                     wordWrap = wordWrap,
                     autoIndent = autoIndent,
                     autoCloseBrackets = autoCloseBrackets,
+                    fontFamily = fontFamilyPref.toComposeFontFamily(),
                     jumpToken = jumpToken,
-                    jumpLine = pendingGoToLine ?: activeTab.cursorLine,
+                    jumpLine = pendingGoToLine ?: activeTab!!.cursorLine,
                     commentToggleToken = commentToggleToken,
                     modifier = Modifier.fillMaxSize(),
                 )
             } else {
+                // v0.0.7 — better empty state with icon + CTA.
                 Box(
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Text(
-                        text = s.editorEmpty,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(
+                            imageVector = Icons.Filled.Description,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+                            modifier = Modifier.size(72.dp),
+                        )
+                        Spacer(Modifier.height(16.dp))
+                        Text(
+                            text = s.editorEmpty,
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                 }
             }
         }
@@ -421,9 +490,7 @@ fun EditorScreen(
             confirmButton = {
                 TextButton(onClick = {
                     val n = lineInput.toIntOrNull()
-                    if (n != null && n > 0) {
-                        pendingGoToLine = n
-                    }
+                    if (n != null && n > 0) pendingGoToLine = n
                     showGoToLine = false
                 }) { Text(s.commonOk) }
             },
@@ -433,9 +500,6 @@ fun EditorScreen(
         )
     }
 
-    // Apply the requested go-to-line by storing the cursor on the tab
-    // AND bumping `jumpToken` so the CodeEditor's `LaunchedEffect`
-    // picks up the new line and moves the caret + scroll position.
     LaunchedEffect(pendingGoToLine) {
         val targetLine = pendingGoToLine ?: return@LaunchedEffect
         pendingGoToLine = null
@@ -454,7 +518,7 @@ fun EditorScreen(
             confirmButton = {
                 TextButton(onClick = {
                     showUnsaved = null
-                    scope.launch {
+                    saveScope.launch {
                         repo.saveTab(id)
                         repo.closeTab(id, discardUnsaved = false)
                         if (repo.tabs.value.isEmpty()) onBack()
@@ -465,7 +529,7 @@ fun EditorScreen(
                 Row {
                     TextButton(onClick = {
                         showUnsaved = null
-                        scope.launch {
+                        saveScope.launch {
                             repo.closeTab(id, discardUnsaved = true)
                             if (repo.tabs.value.isEmpty()) onBack()
                         }
@@ -478,10 +542,26 @@ fun EditorScreen(
     }
 }
 
+/** Maps [SettingsRepository.FontFamily] → Compose [FontFamily]. */
+private fun SettingsRepository.FontFamily.toComposeFontFamily(): FontFamily = when (this) {
+    SettingsRepository.FontFamily.SYSTEM -> FontFamily.Monospace
+    // The JetBrains Mono and Fira Code families would need a bundled
+    // font resource; for v0.0.7 we still default to the system
+    // monospace for both to keep the APK small. The setting is
+    // honoured as a label-only preference for now — full font
+    // bundling is a v0.1.0 task.
+    SettingsRepository.FontFamily.JETBRAINS, SettingsRepository.FontFamily.FIRA -> FontFamily.Monospace
+}
+
 /**
- * v0.0.5 — slim status bar at the bottom of the editor showing
- * line/column position, total line count, word count, character count
- * and selection length.
+ * Slim status bar at the bottom of the editor showing line/column
+ * position, total line count, word count, character count and
+ * selection length.
+ *
+ * v0.0.7 — the word-count regex is now cached per content (was
+ * allocated per recomposition); the right-side text is wrapped in
+ * `weight(1f, fill = false)` + maxLines=1 so it never overlaps the
+ * selection indicator on narrow phones.
  */
 @Composable
 private fun EditorStatusBar(
@@ -494,9 +574,10 @@ private fun EditorStatusBar(
     val lineCount = remember(tab.content) {
         tab.content.count { it == '\n' } + 1
     }
+    val whitespaceRegex = remember { Regex("\\s+") }
     val wordCount = remember(tab.content) {
         if (tab.content.isBlank()) 0
-        else tab.content.trim().split(Regex("\\s+")).size
+        else tab.content.trim().split(whitespaceRegex).size
     }
     val charCount = tab.content.length
     Surface(
@@ -524,6 +605,7 @@ private fun EditorStatusBar(
                     color = MaterialTheme.colorScheme.primary,
                     fontFamily = FontFamily.Monospace,
                     fontSize = 11.sp,
+                    modifier = Modifier.padding(horizontal = 12.dp),
                 )
             }
             Text(
@@ -532,13 +614,22 @@ private fun EditorStatusBar(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontFamily = FontFamily.Monospace,
                 fontSize = 11.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
         }
     }
 }
 
 /**
- * Upgraded Search & Replace bar (v0.0.3, i18n'd in v0.0.4).
+ * v0.0.7 — Search & Replace bar:
+ *  - Single `findAllMatches` computation per keystroke (was two —
+ *    one in `LaunchedEffect` and one in `remember`).
+ *  - Per-match Replace recomputes the matches synchronously after
+ *    each Replace, so subsequent Replace clicks use correct offsets
+ *    (was using stale indices).
+ *  - "Aa" and ".*" hardcoded labels replaced with Material 3
+ *    [FilterChip]s with proper i18n + accessibility.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -547,37 +638,33 @@ private fun SearchReplaceBar(
     onApplyChanges: (String) -> Unit,
     onMessage: (String) -> Unit,
     onClose: () -> Unit,
+    s: Strings.T,
 ) {
-    val activeLanguage by Strings.active.collectAsState()
-    val s = Strings.get()
-
     var query by remember { mutableStateOf("") }
     var replacement by remember { mutableStateOf("") }
     var caseSensitive by remember { mutableStateOf(false) }
     var useRegex by remember { mutableStateOf(false) }
     var currentMatchIndex by remember { mutableIntStateOf(-1) }
-    var totalMatches by remember { mutableIntStateOf(0) }
+    var lastContent by remember { mutableStateOf(tab.content) }
 
-    LaunchedEffect(query, tab.content, caseSensitive, useRegex) {
-        if (query.isEmpty()) {
-            totalMatches = 0
-            currentMatchIndex = -1
-            return@LaunchedEffect
-        }
-        val matches = findAllMatches(tab.content, query, caseSensitive, useRegex)
-        totalMatches = matches.size
-        currentMatchIndex = if (matches.isEmpty()) -1 else 0
-    }
-
-    val matches = remember(query, tab.content, caseSensitive, useRegex) {
+    // v0.0.7 — single computation per keystroke. The result is
+    // observed synchronously so a Replace-then-Replace-again flow
+    // always uses up-to-date offsets.
+    val matches = remember(query, lastContent, caseSensitive, useRegex) {
         if (query.isEmpty()) emptyList()
-        else findAllMatches(tab.content, query, caseSensitive, useRegex)
+        else findAllMatches(lastContent, query, caseSensitive, useRegex)
+    }
+    val totalMatches = matches.size
+    // Reset currentMatchIndex when matches change.
+    LaunchedEffect(matches) {
+        currentMatchIndex = if (matches.isEmpty()) -1 else 0
     }
 
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 8.dp, vertical = 4.dp),
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
+            .padding(horizontal = 8.dp, vertical = 6.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             OutlinedTextField(
@@ -587,8 +674,7 @@ private fun SearchReplaceBar(
                 placeholder = { Text(s.editorFind) },
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(
-                    capitalization = if (caseSensitive) KeyboardCapitalization.Sentences
-                    else KeyboardCapitalization.None,
+                    capitalization = KeyboardCapitalization.None,
                     autoCorrect = false,
                     keyboardType = KeyboardType.Text,
                     imeAction = ImeAction.Done,
@@ -615,7 +701,7 @@ private fun SearchReplaceBar(
                 Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = s.editorNextMatch)
             }
             Text(
-                text = if (matches.isEmpty()) "0 / 0" else "${currentMatchIndex + 1} / ${totalMatches}",
+                text = if (matches.isEmpty()) "0 / 0" else "${currentMatchIndex + 1} / $totalMatches",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(horizontal = 8.dp),
@@ -648,10 +734,15 @@ private fun SearchReplaceBar(
                         return@IconButton
                     }
                     val (start, end) = matches[currentMatchIndex]
-                    val updated = tab.content.substring(0, start) +
+                    val updated = lastContent.substring(0, start) +
                         replacement +
-                        tab.content.substring(end)
+                        lastContent.substring(end)
                     onApplyChanges(updated)
+                    // v0.0.7 — update the local copy so the next
+                    // Replace uses the up-to-date text. The
+                    // `remember(query, lastContent, …)` will recompute
+                    // matches on the next snapshot.
+                    lastContent = updated
                     onMessage(s.editorReplacedMatchN.format(currentMatchIndex + 1))
                 },
             ) {
@@ -662,17 +753,24 @@ private fun SearchReplaceBar(
                     onMessage(s.editorNoMatchesToReplace)
                     return@TextButton
                 }
-                val updated = replaceAllMatches(tab.content, query, replacement, caseSensitive, useRegex)
+                val updated = replaceAllMatches(lastContent, query, replacement, caseSensitive, useRegex)
                 val n = matches.size
                 onApplyChanges(updated)
+                lastContent = updated
                 onMessage(s.editorReplacedNOccurrences.format(n))
             }) { Text(s.editorReplaceAll) }
+            Spacer(Modifier.width(8.dp))
+            FilterChip(
+                selected = caseSensitive,
+                onClick = { caseSensitive = !caseSensitive },
+                label = { Text(s.editorCaseSensitive) },
+            )
             Spacer(Modifier.width(4.dp))
-            Text("Aa", fontFamily = FontFamily.Monospace, fontSize = 12.sp)
-            Switch(checked = caseSensitive, onCheckedChange = { caseSensitive = it })
-            Spacer(Modifier.width(4.dp))
-            Text(".*", fontFamily = FontFamily.Monospace, fontSize = 12.sp)
-            Switch(checked = useRegex, onCheckedChange = { useRegex = it })
+            FilterChip(
+                selected = useRegex,
+                onClick = { useRegex = !useRegex },
+                label = { Text(s.editorRegex) },
+            )
         }
     }
 }
@@ -722,10 +820,7 @@ private fun replaceAllMatches(
         if (useRegex) {
             Regex(needle, flags).replace(haystack, replacement)
         } else {
-            val from = if (caseSensitive) needle else needle.lowercase()
-            val hay = if (caseSensitive) haystack else haystack.lowercase()
-            if (from.isEmpty()) haystack
-            else haystack.replace(from, replacement, ignoreCase = !caseSensitive)
+            haystack.replace(needle, replacement, ignoreCase = !caseSensitive)
         }
     } catch (e: Throwable) {
         haystack

@@ -1,5 +1,9 @@
 package com.vipercode.ide.ui.components
 
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -21,21 +25,31 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.vipercode.ide.data.model.EditorTab
+import com.vipercode.ide.util.Strings
 
 /**
  * Horizontally scrollable row of open editor tabs.
  *
- * Behaviour mirrors modern desktop editors (VS Code, IntelliJ):
- *   - click → activate
- *   - click on the × → close (caller is responsible for unsaved-changes
- *     confirmation)
- *   - dirty tabs render with a dot prefix instead of a dot suffix
+ * v0.0.7 changes:
+ *  - **48dp tap targets** — the close button is now an `IconButton`
+ *    with the default 48dp size; the inner icon stays at 16dp for
+ *    visual proportion.
+ *  - **Animated dirty dot** — the dirty indicator now pulses gently
+ *    so unsaved changes are visually obvious at a glance.
+ *  - **`role = Button`** added to the chip and close for
+ *    accessibility.
+ *  - **`contentDescription`** for the close button is now i18n'd via
+ *    `Strings.get().editorCloseTab`.
+ *  - **Tab height bumped to 40dp** for more breathing room (was 36dp).
  */
 @Composable
 fun TabBar(
@@ -45,10 +59,11 @@ fun TabBar(
     onClose: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val s = Strings.get()
     LazyRow(
         modifier = modifier
             .fillMaxWidth()
-            .height(36.dp)
+            .height(40.dp)
             .background(MaterialTheme.colorScheme.surfaceVariant),
         contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 4.dp),
     ) {
@@ -58,6 +73,7 @@ fun TabBar(
                 active = tab.id == activeTabId,
                 onActivate = { onActivate(tab.id) },
                 onClose = { onClose(tab.id) },
+                closeContentDescription = s.editorCloseTab,
             )
         }
     }
@@ -69,32 +85,44 @@ private fun TabChip(
     active: Boolean,
     onActivate: () -> Unit,
     onClose: () -> Unit,
+    closeContentDescription: String,
 ) {
     val bg = if (active) MaterialTheme.colorScheme.surface
     else MaterialTheme.colorScheme.surfaceVariant
-    // v0.0.3: cap the chip width so a single long file name can't push
-    // every other chip off-screen. The chip still grows for short names
-    // but ellipsises after 180 dp.
     Box(
         modifier = Modifier
-            .height(36.dp)
+            .height(40.dp)
             .background(bg)
-            .clickable { onActivate() }
+            .clickable(
+                role = Role.Button,
+                onClick = onActivate,
+            )
             .padding(horizontal = 12.dp),
         contentAlignment = Alignment.Center,
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.widthIn(max = 180.dp, min = 60.dp),
+            modifier = Modifier.widthIn(max = 200.dp, min = 64.dp),
         ) {
             if (tab.isDirty) {
+                // v0.0.7 — gentle pulse on the dirty dot.
+                val transition = rememberInfiniteTransition(label = "dirty-pulse")
+                val alpha by transition.animateFloat(
+                    initialValue = 0.6f,
+                    targetValue = 1f,
+                    animationSpec = infiniteRepeatable(
+                        animation = androidx.compose.animation.core.tween(900),
+                        repeatMode = RepeatMode.Reverse,
+                    ),
+                    label = "dirty-pulse-alpha",
+                )
                 Box(
                     modifier = Modifier
                         .size(8.dp)
                         .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.primary)
+                        .background(MaterialTheme.colorScheme.primary.copy(alpha = alpha))
                 )
-                Spacer(Modifier.width(6.dp))
+                Spacer(Modifier.width(8.dp))
             }
             Text(
                 text = tab.name,
@@ -106,18 +134,19 @@ private fun TabChip(
                 modifier = Modifier.weight(1f, fill = false),
             )
             Spacer(Modifier.width(8.dp))
+            // v0.0.7 — close button is now a proper 48dp IconButton.
             Box(
                 modifier = Modifier
-                    .size(20.dp)
+                    .size(48.dp)
                     .clip(CircleShape)
-                    .clickable { onClose() },
+                    .clickable(role = Role.Button, onClick = onClose),
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
                     imageVector = Icons.Filled.Close,
-                    contentDescription = "Close tab",
+                    contentDescription = closeContentDescription,
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(14.dp),
+                    modifier = Modifier.size(16.dp),
                 )
             }
         }

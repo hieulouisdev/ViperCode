@@ -28,8 +28,16 @@ import androidx.compose.ui.text.style.TextDecoration
  */
 object SyntaxHints {
 
-    private val OPENERS = mapOf('(' to ')', '[' to ']', '{' to '}', '<' to '>')
-    private val CLOSERS = mapOf(')' to '(', ']' to '[', '}' to '{', '>' to '<')
+    // v0.0.7 — `<` and `>` are NOT matched as brackets in non-HTML/XML
+    // languages. Previously `a < b > c` would have `<` and `>` matched
+    // as a bracket pair, which is wrong in most languages (they are
+    // less-than / greater-than operators). We keep the char set small
+    // so the walker doesn't waste cycles on operator chars.
+    private val OPENERS = mapOf('(' to ')', '[' to ']', '{' to '}')
+    private val CLOSERS = mapOf(')' to '(', ']' to '[', '}' to '{')
+    // HTML/XML separately — they DO match `<>`.
+    private val ANGLE_OPENERS = mapOf('<' to '>')
+    private val ANGLE_CLOSERS = mapOf('>' to '<')
 
     /** Background applied to a matched bracket pair. */
     private val matchedBracketStyle: SpanStyle

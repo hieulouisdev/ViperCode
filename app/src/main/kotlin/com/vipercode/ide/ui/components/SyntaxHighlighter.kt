@@ -225,9 +225,9 @@ object SyntaxHighlighter {
                         addStyle(palette.comment, i, end)
                         i = end
                     }
-                    // String literals
+                    // String literals (and Python triple-quoted strings).
                     c == '"' || c == '\'' -> {
-                        val end = scanString(src, i, c)
+                        val end = scanString(src, i, c, language)
                         append(src.substring(i, end))
                         addStyle(palette.string, i, end)
                         i = end
@@ -296,8 +296,12 @@ object SyntaxHighlighter {
                         addStyle(palette.annotation, i, end)
                         i = end
                     }
-                    // Markdown headings
-                    c == '#' && language == Language.MARKDOWN -> {
+                    // Markdown headings — v0.0.7: only highlight `#` at
+                    // the START of a line (after optional whitespace).
+                    // Previously any `#` mid-paragraph was mis-highlighted
+                    // as a heading, polluting prose Markdown with blue text.
+                    c == '#' && language == Language.MARKDOWN &&
+                        (i == 0 || src[i - 1] == '\n') -> {
                         val end = src.indexOf('\n', i).let { if (it < 0) n else it }
                         append(src.substring(i, end))
                         addStyle(palette.keyword, i, end)
@@ -318,7 +322,22 @@ object SyntaxHighlighter {
         return k
     }
 
-    private fun scanString(src: String, start: Int, quote: Char): Int {
+    private fun scanString(src: String, start: Int, quote: Char, language: Language = Language.UNKNOWN): Int {
+        // v0.0.7 — Python triple-quoted strings (""" or ''') span
+        // multiple lines. The previous single-line scan terminated at
+        // the first '\n', mis-highlighting the rest of the string body
+        // as code.
+        if (language == Language.PYTHON) {
+            val triple = "$quote$quote$quote"
+            if (src.startsWith(triple, start)) {
+                var i = start + 3
+                while (i < src.length) {
+                    if (src.startsWith(triple, i)) return i + 3
+                    i++
+                }
+                return src.length
+            }
+        }
         var i = start + 1
         while (i < src.length) {
             when (src[i]) {
@@ -360,7 +379,9 @@ object SyntaxHighlighter {
             if (i < src.length && (src[i] == '+' || src[i] == '-')) i++
             while (i < src.length && src[i].isDigit()) i++
         }
-        if (i < src.length && src[i] in "fFlLuUdD") i++
+        // v0.0.7 — multi-char numeric suffixes like `123UL`, `0xFFL`,
+        // `1.5e10f` consume ALL trailing `fFlLuUdD` chars (was only one).
+        while (i < src.length && src[i] in "fFlLuUdD") i++
         return i
     }
 

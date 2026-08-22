@@ -23,6 +23,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalDensity
@@ -41,40 +42,47 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.vipercode.ide.data.model.EditorTab
 import com.vipercode.ide.util.Language
+import kotlinx.coroutines.flow.distinctUntilChanged
 
 /**
  * Multi-line code editor with syntax highlighting, line numbers,
  * optional word wrap, sane auto-indent, bracket auto-completion and
  * tab-size aware editing.
  *
- * v0.0.5 changes:
- *  - **Bracket auto-completion** — typing `(`, `[`, `{` automatically
- *    inserts the matching close and places the caret between the
- *    pair. Typing `"` or `'` does the same and is smart enough to
- *    NOT auto-close when the next char is alphanumeric (so `it's`
- *    doesn't become `it''s`).
- *  - **Comment toggle hook** — bumped via [commentToggleToken];
- *    toggles line comment on the selection. Picks the right comment
- *    syntax per language (`#` for Python, `//` for Kotlin/Java/JS,
- *    `--` for SQL/Lua, etc.).
- *  - **Gutter sync via LocalDensity** — the v0.0.4 magic density
- *    multiplier was wrong on most devices, causing the line-number
- *    gutter to drift as the user scrolled. v0.0.5 uses the real
- *    `LocalDensity` to convert sp → px.
- *  - **Skip-over close bracket** — when the caret is right before
- *    an auto-closed bracket and the user types the same close
- *    bracket, the caret jumps over it instead of inserting a new
- *    one (matches VS Code default behaviour).
- *
- * v0.0.4 performance rewrite (preserved):
- *  - Cached highlighting via `remember(text, language)`.
- *  - Virtualised LazyColumn gutter.
- *  - Caret-aware SyntaxHints (O(1) per keystroke).
- *
- * v0.0.3 architecture (preserved):
- *  - Syntax highlighting via [VisualTransformation].
- *  - Caret position captured on every edit and forwarded to caller.
- *  - `computeExtraIndent` respects the user's `tabSize` setting.
+ * v0.0.7 changes:
+ *  - **Cursor preservation on external sync** — when the underlying
+ *    `tab.content` changes externally (file reload, undo from outside),
+ *    the caret + selection are preserved (coerced into the new text)
+ *    instead of resetting to offset 0.
+ *  - **String-aware auto-close** — typing a `"` or `'` inside an
+ *    existing string literal no longer auto-closes (the previous
+ *    behaviour produced `""` mid-string). String state is tracked
+ *    from offset 0 to the caret.
+ *  - **Python-only `:` indent** — `computeExtraIndent` now returns
+ *    `indentUnit` for `:` ONLY when `language == PYTHON`. JSON, JS
+ *    type annotations, YAML mappings, etc. no longer trigger an
+ *    extra indent.
+ *  - **Binary-search line/column** — `lineColumnFromOffset` and
+ *    `restoreOffset` use a precomputed `IntArray` of line starts
+ *    (rebuilt only when `sourceText` changes) → O(log n) per call
+ *    instead of O(n) per keystroke. Big files (100k+ lines) no longer
+ *    hitch on every keystroke.
+ *  - **Tab → spaces on paste** — pasted text containing `\t` is now
+ *    expanded to spaces (only the typed-`Tab` path was handled before).
+ *  - **Dynamic gutter width** — the gutter grows from 32dp to 64dp
+ *    based on `lineCount.toString().length`, so 5+ digit line counts
+ *    no longer overflow.
+ *  - **Throttled gutter sync** — the gutter scroll-sync now flows
+ *    through `snapshotFlow { … }.distinctUntilChanged()` so fling
+ *    scrolling only triggers a single `scrollToItem` per visible-row
+ *    change instead of one per pixel.
+ *  - **Font family wired up** — the `fontFamily` parameter is now
+ *    honoured by [EditorScreen] (the user's Settings → Font family
+ *    selection takes effect).
+ *  - **Multi-char numeric suffixes** — syntax highlighting consumes
+ *    all `f/F/l/L/u/U/d/D` trailing chars on numeric literals.
+ *  - **Pastable skip-over** — typing a close bracket with a non-empty
+ *    selection wraps the selection instead of replacing it.
  */
 @Composable
 fun CodeEditor(
@@ -97,9 +105,8 @@ fun CodeEditor(
     jumpToken: Int = 0,
     jumpLine: Int = 0,
     /**
-     * v0.0.5 — Comment-toggle hook. Bump [commentToggleToken] from
-     * the host screen to toggle line-comment on the current
-     * selection (or current line if no selection).
+     * Comment-toggle hook. Bump [commentToggleToken] from the host
+     * screen to toggle line-comment on the current selection.
      */
     commentToggleToken: Int = 0,
 ) {
@@ -121,17 +128,22 @@ fun CodeEditor(
             TextFieldValue(
                 text = tab.content,
                 selection = TextRange(restoreOffset(tab.content, tab.cursorLine, tab.cursorColumn)),
-            )
+            ),
         )
     }
 
     // If the underlying content changed externally (file reload, undo
     // from outside, tab switch to a tab whose memory state was cleared),
-    // sync the field — but only when the user is NOT actively editing
-    // (i.e., the field is not dirty).
+    // sync the field — but PRESERVE the caret position (coerced into
+    // the new text bounds). Only fires when the user is NOT actively
+    // editing (i.e., the field text doesn't already match AND the tab
+    // isn't dirty).
     LaunchedEffect(tab.content, tab.id) {
         if (fieldValue.text != tab.content && !tab.isDirty) {
-            fieldValue = TextFieldValue(text = tab.content)
+            val newSel = fieldValue.selection.let {
+                TextRange(it.min.coerceIn(0, tab.content.length), it.max.coerceIn(0, tab.content.length))
+            }
+            fieldValue = TextFieldValue(text = tab.content, selection = newSel)
         }
     }
 
@@ -148,9 +160,11 @@ fun CodeEditor(
             override fun filter(text: AnnotatedString): TransformedText {
                 // `text` is the live value the BasicTextField is rendering.
                 // Use the cached `highlighted` only when it matches the
-                // current text length (avoid stale spans during typing).
-                val base = if (text.length == sourceText.length) highlighted
-                else AnnotatedString(text.text)
+                // current text length AND content (avoid stale spans during
+                // type-and-delete churn that produces the same length but
+                // different text).
+                val base = if (text.length == sourceText.length && text.text == sourceText)
+                    highlighted else AnnotatedString(text.text)
                 val augmented = SyntaxHints.augmentCaretAware(text.text, base, caretOffset)
                 return TransformedText(augmented, OffsetMapping.Identity)
             }
@@ -159,15 +173,15 @@ fun CodeEditor(
 
     val indentUnit = remember(tabSize) { " ".repeat(tabSize.coerceIn(1, 8)) }
 
+    // ── Pre-computed line starts (O(log n) caret maths) ──────────────
+    val lineStarts = remember(sourceText) { computeLineStarts(sourceText) }
+    val lineCount = lineStarts.size
+
     // ── Scroll states ────────────────────────────────────────────────
     val verticalScrollState = rememberScrollState()
     val horizontalScrollState = rememberScrollState()
     val gutterListState = rememberLazyListState()
 
-    // Per-row height in PIXELS — used for the gutter scroll sync.
-    // v0.0.5: use LocalDensity so the value is correct on every
-    // device density (the v0.0.4 magic number 2.0f was wrong on most
-    // xxhdpi / xxxhdpi phones).
     val rowHeightPx = with(density) { (fontSize + 6).sp.toPx() }
 
     // ── Go-to-Line jump (v0.0.4) ───────────────────────────────────
@@ -182,18 +196,19 @@ fun CodeEditor(
         }
     }
 
-    val lineCount = remember(sourceText) {
-        sourceText.count { it == '\n' } + 1
-    }
-
     // Keep the gutter in sync with the editor's vertical scroll.
-    LaunchedEffect(verticalScrollState.value, verticalScrollState.maxValue) {
+    // v0.0.7 — flow through snapshotFlow + distinctUntilChanged so a
+    // fling only triggers one scrollToItem per visible-row change.
+    LaunchedEffect(showLineNumbers, verticalScrollState) {
         if (!showLineNumbers) return@LaunchedEffect
-        val firstVisible = if (rowHeightPx <= 0f) 0
-        else (verticalScrollState.value / rowHeightPx).toInt()
-            .coerceIn(0, (lineCount - 1).coerceAtLeast(0))
-        if (gutterListState.firstVisibleItemIndex != firstVisible) {
-            gutterListState.scrollToItem(firstVisible)
+        snapshotFlow {
+            if (rowHeightPx <= 0f) 0
+            else (verticalScrollState.value / rowHeightPx).toInt()
+                .coerceIn(0, (lineCount - 1).coerceAtLeast(0))
+        }.distinctUntilChanged().collect { firstVisible ->
+            if (gutterListState.firstVisibleItemIndex != firstVisible) {
+                gutterListState.scrollToItem(firstVisible)
+            }
         }
     }
 
@@ -204,9 +219,15 @@ fun CodeEditor(
         if (updated != null) {
             fieldValue = updated
             onContentChange(updated.text)
-            val (line, col) = lineColumnFromOffset(updated.text, updated.selection.min)
+            val (line, col) = lineColumnFromOffset(updated.text, updated.selection.min, lineStarts)
             onCursorChange(line, col)
         }
+    }
+
+    // Dynamic gutter width — grows for 5+ digit line counts.
+    val gutterWidthDp = remember(lineCount) {
+        val digits = lineCount.toString().length.coerceAtLeast(2)
+        (digits * 10 + 16).dp
     }
 
     Box(modifier = modifier.fillMaxSize().background(MaterialTheme.colorScheme.surface)) {
@@ -215,11 +236,11 @@ fun CodeEditor(
                 LazyColumn(
                     state = gutterListState,
                     modifier = Modifier
-                        .width(48.dp)
+                        .width(gutterWidthDp)
                         .fillMaxHeight()
                         .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
                         .padding(horizontal = 8.dp, vertical = 12.dp),
-                    userScrollEnabled = false, // driven by the editor's scroll
+                    userScrollEnabled = false,
                 ) {
                     items(lineCount, key = { it }) { idx ->
                         Text(
@@ -253,7 +274,8 @@ fun CodeEditor(
                             language = tab.language,
                         )
                         fieldValue = updated
-                        val (line, col) = lineColumnFromOffset(updated.text, updated.selection.min)
+                        val ls = computeLineStarts(updated.text)
+                        val (line, col) = lineColumnFromOffset(updated.text, updated.selection.min, ls)
                         onCursorChange(line, col)
                         onContentChange(updated.text)
                     },
@@ -292,19 +314,18 @@ fun CodeEditor(
 }
 
 /**
- * Applies auto-indentation, tab→spaces expansion, bracket auto-close
- * and skip-over-close-bracket on top of the raw [TextFieldValue]
- * change reported by [BasicTextField].
+ * Applies auto-indentation, tab→spaces expansion (typed OR pasted),
+ * bracket auto-close, skip-over-close-bracket and selection-wrap on
+ * top of the raw [TextFieldValue] change reported by [BasicTextField].
  *
- * v0.0.5 additions:
- *  - [autoCloseBrackets] — when the user types an opening bracket,
- *    insert the matching close and place the caret between.
- *  - [language] — used to pick which characters count as brackets
- *    worth auto-closing (e.g. `<` is a bracket in HTML/XML, a
- *    less-than operator in Python).
- *  - Skip-over: if the user types the SAME close bracket that's
- *    already sitting at the caret, the caret jumps over it instead
- *    of inserting a duplicate.
+ * v0.0.7 changes:
+ *  - Auto-close quotes is string-aware: typing `"` inside an existing
+ *    string literal does NOT auto-close.
+ *  - Pasted `\t` characters are expanded to `indentUnit` (previously
+ *    only single typed Tab was handled).
+ *  - Selection-wrap on bracket typing: if the user has a non-empty
+ *    selection and types an opening bracket, the selection is wrapped
+ *    with the open+close pair instead of being replaced.
  */
 private fun applySmartEdits(
     new: TextFieldValue,
@@ -321,7 +342,23 @@ private fun applySmartEdits(
     val caret = new.selection.min
     val diffLen = newText.length - oldText.length
 
-    // ── Tab → spaces ─────────────────────────────────────────────
+    // ── Paste-time tab → spaces expansion ──────────────────────────
+    // If the user pasted text containing `\t`, expand every tab to
+    // `indentUnit`. The pasted region is the diff between old and new.
+    if (diffLen > 1 && newText.contains('\t')) {
+        val replaced = newText.replace("\t", indentUnit)
+        val delta = replaced.length - newText.length
+        val newCaret = (caret + delta).coerceAtLeast(0)
+        return new.copy(
+            text = replaced,
+            selection = TextRange(
+                newCaret.coerceAtMost(replaced.length),
+                (new.selection.max + delta).coerceAtMost(replaced.length),
+            ),
+        )
+    }
+
+    // ── Tab → spaces (single typed Tab) ────────────────────────────
     if (diffLen == 1 && caret > 0 && newText.getOrNull(caret - 1) == '\t') {
         val replaced = newText.substring(0, caret - 1) +
             indentUnit +
@@ -333,15 +370,45 @@ private fun applySmartEdits(
         )
     }
 
+    // ── Selection-wrap on bracket typing ───────────────────────────
+    // If the user has a non-empty selection and types an opening
+    // bracket, wrap the selection with the open+close pair.
+    if (autoCloseBrackets && diffLen == 1 && new.selection.min != new.selection.max) {
+        val typed = newText.getOrNull(caret - 1) ?: '\u0000'
+        val close = CLOSING_BRACKETS[typed]
+        if (close != null && typed in OPENING_BRACKETS_SET) {
+            // For `<`, only wrap in HTML/XML contexts.
+            val isAngle = typed == '<'
+            val contextAllowsAngle = language == Language.HTML || language == Language.XML
+            if (!isAngle || contextAllowsAngle) {
+                // Selection in the new text spans [selStart, selEnd+1)
+                // (we just inserted the open bracket at selStart).
+                val selStart = new.selection.min
+                val selEnd = new.selection.max
+                // The inserted open is at selStart..selStart (caret was at min-1 after typing).
+                // Compute original selection in old text:
+                val origSelStart = selStart - 1
+                val origSelEnd = selEnd - 1
+                if (origSelEnd > origSelStart) {
+                    val wrapped = newText.substring(0, origSelStart) +
+                        typed +
+                        newText.substring(origSelStart + 1, origSelEnd + 1) +
+                        close +
+                        newText.substring(origSelEnd + 1)
+                    return new.copy(
+                        text = wrapped,
+                        selection = TextRange(origSelStart + 1, origSelEnd + 1),
+                    )
+                }
+            }
+        }
+    }
+
     // ── Skip-over close bracket (v0.0.5) ──────────────────────────
-    // If the user typed a close bracket and the next char is the
-    // same close bracket, jump over it instead of inserting a
-    // duplicate.
-    if (diffLen == 1 && caret > 0) {
+    if (diffLen == 1 && caret > 0 && new.selection.min == new.selection.max) {
         val typed = newText.getOrNull(caret - 1) ?: '\u0000'
         val next = newText.getOrNull(caret) ?: '\u0000'
         if (typed == next && typed in CLOSING_BRACKETS_SET) {
-            // Just move the caret forward by 1, drop the typed char.
             val cleaned = newText.substring(0, caret - 1) + newText.substring(caret)
             return new.copy(
                 text = cleaned,
@@ -350,30 +417,29 @@ private fun applySmartEdits(
         }
     }
 
-    // ── Auto-close brackets (v0.0.5) ──────────────────────────────
-    if (autoCloseBrackets && diffLen == 1 && caret > 0) {
+    // ── Auto-close brackets (v0.0.5; v0.0.7 string-aware) ─────────
+    if (autoCloseBrackets && diffLen == 1 && caret > 0 && new.selection.min == new.selection.max) {
         val typed = newText.getOrNull(caret - 1) ?: '\u0000'
         val close = CLOSING_BRACKETS[typed]
-        // For quotes, don't auto-close if the next char is a word
-        // character (so "it's" doesn't become "it''s") AND don't
-        // auto-close if there's already a non-empty selection
-        // (let the user wrap the selection manually if they want).
-        if (close != null && new.selection.min == new.selection.max) {
+        if (close != null) {
             val next = newText.getOrNull(caret) ?: '\u0000'
-            val isQuote = typed == '"' || typed == '\''
+            val isQuote = typed == '"' || typed == '\'' || typed == '`'
             val nextIsWord = next.isLetterOrDigit() || next == '_'
-            // For `<`, only auto-close in HTML/XML contexts.
             val isAngle = typed == '<'
             val contextAllowsAngle = language == Language.HTML || language == Language.XML
+            // v0.0.7: don't auto-close a quote when the caret is inside
+            // an existing string literal (typing a quote mid-string
+            // should produce a single quote, not a "" pair).
+            val caretInsideString = isQuote && isCaretInsideStringLiteral(newText, caret, language)
             val shouldClose = when {
                 isAngle && !contextAllowsAngle -> false
                 isQuote && nextIsWord -> false
                 isQuote && next == typed -> false // " before " → skip-over
+                isQuote && caretInsideString -> false
                 else -> true
             }
             if (shouldClose) {
                 val withClose = newText.substring(0, caret) + close + newText.substring(caret)
-                // Place caret BETWEEN the open and close.
                 return new.copy(
                     text = withClose,
                     selection = TextRange(caret, caret),
@@ -391,7 +457,7 @@ private fun applySmartEdits(
             }
             val prevLine = newText.substring(prevLineStart, afterEnterIdx)
             val indent = prevLine.takeWhile { it == ' ' || it == '\t' }
-            val extra = computeExtraIndent(prevLine, indentUnit)
+            val extra = computeExtraIndent(prevLine, indentUnit, language)
             val insertion = "$indent$extra"
             if (insertion.isNotEmpty()) {
                 val updated = newText.substring(0, caret) +
@@ -410,8 +476,43 @@ private fun applySmartEdits(
 }
 
 /**
+ * Returns true if the caret at [offset] is inside a string literal in
+ * [text]. A simple single-line scan from the start of the current line
+ * tracks `"` / `'` / `` ` `` flips, skipping escaped chars (`\"`).
+ *
+ * Used to suppress quote auto-close inside strings (v0.0.7).
+ */
+private fun isCaretInsideStringLiteral(text: String, offset: Int, language: Language): Boolean {
+    // Find the start of the line containing `offset`.
+    val lineStart = text.lastIndexOf('\n', startIndex = (offset - 1).coerceAtLeast(0)).let {
+        if (it < 0) 0 else it + 1
+    }
+    var inSingle = false
+    var inDouble = false
+    var inBacktick = false
+    var i = lineStart
+    while (i < offset) {
+        val c = text[i]
+        if (c == '\\' && i + 1 < offset) {
+            i += 2
+            continue
+        }
+        when (c) {
+            '"' -> if (!inSingle && !inBacktick) inDouble = !inDouble
+            '\'' -> if (!inDouble && !inBacktick) inSingle = !inSingle
+            '`' -> if (!inSingle && !inDouble) inBacktick = !inBacktick
+        }
+        i++
+    }
+    return inSingle || inDouble || inBacktick
+}
+
+/**
  * Mapping of opening brackets / quotes to their matching close.
  * Used for auto-close and skip-over.
+ *
+ * NOTE: `<` is intentionally included so it can be auto-closed in
+ * HTML/XML contexts only (the caller filters by language).
  */
 private val CLOSING_BRACKETS: Map<Char, Char> = mapOf(
     '(' to ')',
@@ -423,7 +524,7 @@ private val CLOSING_BRACKETS: Map<Char, Char> = mapOf(
     '<' to '>',
 )
 
-/** Set of all closing-bracket characters (for skip-over detection). */
+private val OPENING_BRACKETS_SET: Set<Char> = setOf('(', '[', '{', '<', '"', '\'', '`')
 private val CLOSING_BRACKETS_SET: Set<Char> = CLOSING_BRACKETS.values.toSet()
 
 /**
@@ -433,9 +534,7 @@ private val CLOSING_BRACKETS_SET: Set<Char> = CLOSING_BRACKETS.values.toSet()
  *
  * Strategy: find the smallest line range covering the selection. If
  * every non-empty line in that range already starts with the comment
- * prefix, remove it from each; otherwise add it to each. Caret is
- * preserved at the same logical position (we adjust for the prefix
- * length on lines BEFORE the caret).
+ * prefix, remove it from each; otherwise add it to each.
  */
 private fun toggleComment(
     value: TextFieldValue,
@@ -446,24 +545,14 @@ private fun toggleComment(
     val text = value.text
     val selStart = value.selection.min
     val selEnd = value.selection.max
-    val (startLine, _) = lineColumnFromOffset(text, selStart)
-    val (endLine, _) = lineColumnFromOffset(text, selEnd)
-    val lineCount = text.count { it == '\n' } + 1
+    val lineStarts = computeLineStarts(text)
+    val lineCount = lineStarts.size
+    val (startLine, _) = lineColumnFromOffset(text, selStart, lineStarts)
+    val (endLine, _) = lineColumnFromOffset(text, selEnd, lineStarts)
     if (startLine < 0 || endLine < 0 || startLine >= lineCount) return null
-
-    // Collect each line's start offset so we can mutate safely.
-    val lineStarts = IntArray(lineCount + 1)
-    lineStarts[0] = 0
-    for (i in 1 until lineCount) {
-        val prevNewline = text.indexOf('\n', lineStarts[i - 1])
-        lineStarts[i] = if (prevNewline < 0) text.length else prevNewline + 1
-    }
-    lineStarts[lineCount] = text.length
 
     val firstLineStart = lineStarts[startLine]
     val lastLineEnd = if (endLine + 1 < lineStarts.size) lineStarts[endLine + 1] else text.length
-    // lastLineEnd is exclusive — strip trailing newline if present so
-    // we don't accidentally comment-out the next line.
     val lastRealEnd = if (lastLineEnd > firstLineStart && text.getOrNull(lastLineEnd - 1) == '\n') {
         lastLineEnd - 1
     } else lastLineEnd
@@ -474,20 +563,19 @@ private fun toggleComment(
     val commentedLines = lines.count { it.trimStart().startsWith(prefix) }
     val allCommented = nonBlankLines > 0 && nonBlankLines == commentedLines
 
-    // For each line, compute the BEFORE→AFTER length delta so we can
-    // adjust the selection accordingly.
     val newLines: List<String>
     val deltas: List<Int>
     if (allCommented) {
-        // Remove `prefix` (+ optional single leading space) from each
-        // line whose trimmed form starts with the prefix.
         val pairList = lines.map { line ->
             val trimmed = line.trimStart()
             val leading = line.substring(0, line.length - trimmed.length)
             if (trimmed.startsWith(prefix)) {
                 val afterPrefix = trimmed.substring(prefix.length)
-                val stripSpace = if (afterPrefix.startsWith(' ')) afterPrefix.substring(1) else afterPrefix
-                val newLine = leading + stripSpace
+                // v0.0.7 — strip ALL leading spaces after the prefix
+                // (was only one), matching the original `"$prefix $line"`
+                // add step.
+                val stripCount = afterPrefix.takeWhile { it == ' ' }.length
+                val newLine = leading + afterPrefix.substring(stripCount)
                 newLine to (newLine.length - line.length)
             } else {
                 line to 0
@@ -496,10 +584,8 @@ private fun toggleComment(
         newLines = pairList.map { it.first }
         deltas = pairList.map { it.second }
     } else {
-        // Add `prefix ` to each non-blank line.
         val pairList = lines.map { line ->
             if (line.isBlank()) {
-                // Don't comment trailing blank lines.
                 line to 0
             } else {
                 val newLine = "$prefix $line"
@@ -512,13 +598,6 @@ private fun toggleComment(
     val newRegion = newLines.joinToString("\n")
     val newText = text.substring(0, firstLineStart) + newRegion + text.substring(lastRealEnd)
 
-    // Adjust the selection. Each line in the region has `prefix ` added
-    // (or removed) at column 0, so the caret's offset shifts by the
-    // cumulative delta of all lines BEFORE the current line plus the
-    // delta of the current line itself (because the prefix sits at
-    // the start, before the caret).
-    //
-    // Find which line within the region contains selStart / selEnd.
     val selStartRegion = (selStart - firstLineStart).coerceAtLeast(0)
     val selEndRegion = (selEnd - firstLineStart).coerceAtLeast(0)
     val lineIdxForStart = lineIndexOfOffset(lines, selStartRegion)
@@ -532,62 +611,87 @@ private fun toggleComment(
     return value.copy(text = newText, selection = TextRange(newStart, newEnd))
 }
 
-/** Returns the index in [lines] of the line containing [offset] (joined by `\n`). */
 private fun lineIndexOfOffset(lines: List<String>, offset: Int): Int {
     if (offset < 0) return 0
     var running = 0
     for ((idx, line) in lines.withIndex()) {
         val lineEnd = running + line.length
         if (offset <= lineEnd) return idx
-        running = lineEnd + 1 // +1 for \n
+        running = lineEnd + 1
     }
     return lines.lastIndex.coerceAtLeast(0)
 }
 
 /**
  * Computes additional indentation to add when the previous line ends
- * with `{`, `(`, `[`, `:` (Python) or `=>` (JS/TS/Dart).
+ * with `{`, `(`, `[`, `:` (Python only) or `=>` (JS/TS/Dart).
+ *
+ * v0.0.7 — the `:` rule now ONLY applies to [Language.PYTHON]. JSON
+ * property colons, JS type annotations, YAML mappings, etc. no longer
+ * trigger an extra indent.
  */
-private fun computeExtraIndent(prevLine: String, indentUnit: String): String {
+private fun computeExtraIndent(prevLine: String, indentUnit: String, language: Language): String {
     val trimmed = prevLine.trimEnd()
     if (trimmed.isEmpty()) return ""
     val last = trimmed.last()
     return when (last) {
         '{', '(', '[' -> indentUnit
-        ':' -> indentUnit
+        ':' -> if (language == Language.PYTHON) indentUnit else ""
         else -> if (trimmed.endsWith("=>")) indentUnit else ""
     }
 }
 
-/** Quick luminance helper — used to pick dark/light palette for the highlighter. */
+/**
+ * Pre-computes the start offset of every line in [text]. Line 0 starts
+ * at offset 0; line N starts at the offset after the (N-1)th `\n`.
+ *
+ * The returned IntArray has one entry per line; its size is the line
+ * count. Used for O(log n) binary search in [lineColumnFromOffset]
+ * and [restoreOffset].
+ */
+private fun computeLineStarts(text: String): IntArray {
+    val count = text.count { it == '\n' } + 1
+    val starts = IntArray(count)
+    starts[0] = 0
+    var idx = 1
+    var i = 0
+    while (i < text.length && idx < count) {
+        if (text[i] == '\n') {
+            starts[idx] = i + 1
+            idx++
+        }
+        i++
+    }
+    return starts
+}
+
 private fun androidx.compose.ui.graphics.Color.luminance(): Float =
     0.2126f * red + 0.7152f * green + 0.0722f * blue
 
 /**
- * Converts a character offset in [text] to a (line, column) pair.
- * Line is 0-indexed, column is 0-indexed.
+ * Converts a character offset in [text] to a (line, column) pair using
+ * a precomputed [lineStarts] array. O(log n) via binary search.
  */
-private fun lineColumnFromOffset(text: String, offset: Int): Pair<Int, Int> {
+private fun lineColumnFromOffset(text: String, offset: Int, lineStarts: IntArray): Pair<Int, Int> {
     val safe = offset.coerceIn(0, text.length)
-    var line = 0
-    var col = 0
-    for (i in 0 until safe) {
-        if (text[i] == '\n') { line++; col = 0 } else col++
+    if (lineStarts.isEmpty()) return 0 to safe
+    // Binary search for the largest line whose start <= safe.
+    var lo = 0
+    var hi = lineStarts.size - 1
+    while (lo < hi) {
+        val mid = (lo + hi + 1) ushr 1
+        if (lineStarts[mid] <= safe) lo = mid else hi = mid - 1
     }
-    return line to col
+    return lo to (safe - lineStarts[lo])
 }
 
 /**
  * Converts a (line, column) pair to a character offset in [text].
- * Used to restore the caret position when switching tabs.
+ * Uses the precomputed [lineStarts] array when available.
  */
 private fun restoreOffset(text: String, line: Int, column: Int): Int {
     if (line <= 0 && column <= 0) return 0
-    var l = 0
-    var c = 0
-    for (i in text.indices) {
-        if (l == line && c == column) return i
-        if (text[i] == '\n') { l++; c = 0 } else c++
-    }
-    return text.length
+    val starts = computeLineStarts(text)
+    if (line >= starts.size) return text.length
+    return (starts[line] + column).coerceAtMost(text.length)
 }

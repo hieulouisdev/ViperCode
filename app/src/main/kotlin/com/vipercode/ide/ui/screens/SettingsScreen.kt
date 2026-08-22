@@ -1,5 +1,6 @@
 package com.vipercode.ide.ui.screens
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -12,6 +13,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
@@ -30,6 +32,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import com.vipercode.ide.data.prefs.SettingsRepository
 import com.vipercode.ide.data.prefs.SettingsRepository.FontFamily
@@ -56,7 +59,7 @@ import kotlinx.coroutines.launch
  */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
-fun SettingsScreen(onBack: () -> Unit) {
+fun SettingsScreen(onBack: () -> Unit, onAbout: () -> Unit = {}) {
     val scope = rememberCoroutineScope()
 
     // Subscribe to the Strings catalogue so the screen recomposes when
@@ -93,7 +96,7 @@ fun SettingsScreen(onBack: () -> Unit) {
                 title = { Text(s.settingsTitle) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = s.editorBack)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -214,7 +217,7 @@ fun SettingsScreen(onBack: () -> Unit) {
             }
 
             HorizontalDivider()
-            SectionHeader(s.previewSubtitle)
+            SectionHeader(s.settingsPreviewSection)
             ToggleRow(
                 title = s.previewLiveToggle,
                 subtitle = s.previewSubtitle,
@@ -222,13 +225,33 @@ fun SettingsScreen(onBack: () -> Unit) {
                 onChange = { v -> scope.launch { SettingsRepository.livePreview.set(v) } },
             )
             SliderRow(
-                title = s.settingsAutoSaveDelay,
+                title = s.settingsPreviewDelay,
                 valueLabel = "${previewDelayMs} ms",
                 value = previewDelayMs.toFloat(),
                 range = 300f..3000f,
                 steps = 8,
                 onChange = { v -> scope.launch { SettingsRepository.previewDelayMs.set(v.toInt()) } },
             )
+
+            HorizontalDivider()
+            SectionHeader(s.settingsAboutSection)
+            // v0.0.7 — inline About button so the user can reach
+            // About from Settings without going back to Home.
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(role = Role.Button) { onAbout() }
+                    .padding(vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Text(text = s.settingsAboutOpen, style = MaterialTheme.typography.bodyLarge)
+                Icon(
+                    imageVector = androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
     }
 }
@@ -250,8 +273,11 @@ private fun ToggleRow(
     checked: Boolean,
     onChange: (Boolean) -> Unit,
 ) {
+    // v0.0.7 — make the entire row tappable, not just the Switch.
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(role = Role.Switch) { onChange(!checked) },
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween,
     ) {

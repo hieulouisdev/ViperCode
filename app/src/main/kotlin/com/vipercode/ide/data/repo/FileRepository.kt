@@ -17,26 +17,33 @@ import kotlinx.coroutines.withContext
 import java.io.File
 
 /**
+ * Result type for repository operations that can fail. Used so the
+ * caller (the screen) can show a meaningful snackbar / toast instead
+ * of a silent failure.
+ *
+ * v0.0.7 — replaces the previous `Boolean` returns that swallowed
+ * errors silently.
+ */
+sealed class RepoResult<out T> {
+    data class Success<T>(val value: T) : RepoResult<T>()
+    data class Failure(val message: String, val cause: Throwable? = null) : RepoResult<Nothing>()
+}
+
+/**
  * In-memory state holder for the ViperCode workspace.
  *
- * v0.0.2 keeps the open folder / file tree / open tabs in memory but
- * adds **offline-first** persistence:
- *
- *  - The last opened folder URI is persisted in [SettingsRepository].
- *  - A default local workspace (`getExternalFilesDir/workspace`) is used
- *    the first time the app launches so the user can start editing
- *    immediately without picking a SAF folder.
- *  - All settings, including the last folder URI, are stored locally
- *    in DataStore — no network access is ever required.
- *
- * Auto-save: dirty tabs are saved automatically after a configurable
- * idle delay (see [SettingsRepository.autoSaveDelayMs]). The trigger
- * lives in [com.vipercode.ide.ui.screens.EditorScreen]; this repository
- * exposes [saveTabIfDirty] for it to call.
- *
- * The repository is safe to share across ViewModels — every mutation is
- * performed on [Dispatchers.IO] and the public state is read-only via
- * [StateFlow].
+ * v0.0.7 changes:
+ *  - **Rename now updates the tab URI** — previously the tab's `uri`
+ *    field stayed pointing at the old URI after a SAF `renameTo`,
+ *    so subsequent saves wrote to a non-existent file. The new
+ *    implementation re-resolves the renamed DocumentFile and updates
+ *    `tab.uri` to the new URI returned by SAF.
+ *  - **Open/save errors surface to the caller** — `openFile`,
+ *    `openExternalFile`, `saveTab`, and `extractZipToProjects` now
+ *    return `RepoResult` so the screen can show a snackbar instead
+ *    of a silent empty editor / silent save failure.
+ *  - **Recent-folders list updated on every folder open** — so the
+ *    switch-folder sheet always reflects the last-visited folders.
  */
 class FileRepository(private val appContext: Context) {
 
@@ -54,12 +61,14 @@ class FileRepository(private val appContext: Context) {
 
     /**
      * Opens the given SAF tree URI or `file://` URI as the workspace.
-     * Falls back silently if the URI can no longer be resolved (e.g.
-     * the user revoked permission).
+     * v0.0.7 — returns a [RepoResult] so the caller can show a
+     * snackbar if the URI can no longer be resolved.
      */
-    suspend fun openFolder(uri: Uri) = withContext(Dispatchers.IO) {
+    suspend fun openFolder(uri: Uri): RepoResult<FileNode> = withContext(Dispatchers.IO) {
         val doc = FileUtils.resolve(appContext, uri) ?: return@withContext
+            RepoResult.Failure<FileNode>("Cannot resolve folder — permission may have been revoked")
         if (!doc.isDirectory) return@withContext
+            RepoResult.Failure<FileNode>("Selected document is not a folder")
         val root = FileNode(
             uri = uri,
             name = doc.name ?: displayNameForLocal(uri),
@@ -71,6 +80,10 @@ class FileRepository(private val appContext: Context) {
         )
         _openFolder.value = root
         refreshDirectory(uri)
+        // v0.0.7 — track this folder as recent so the switch-folder
+        // sheet picks it up.
+        com.vipercode.ide.data.prefs.RecentFolders.add(uri)
+        RepoResult.Success(root)
     }
 
     /** Closes the current workspace but keeps the tabs in memory. */
@@ -84,25 +97,33 @@ class FileRepository(private val appContext: Context) {
         _tree.update { it.toMutableMap().apply { put(uri, children) } }
     }
 
-    suspend fun openFile(uri: Uri): EditorTab? = withContext(Dispatchers.IO) {
+    /**
+     * v0.0.7 — returns [RepoResult] so a read failure is surfaced to
+     * the user (previously the caller got an empty-content tab and had
+     * no way to know the file was unreadable).
+     */
+    suspend fun openFile(uri: Uri): RepoResult<EditorTab> = withContext(Dispatchers.IO) {
         // Reuse existing tab if already open.
         _tabs.value.firstOrNull { it.uri == uri }?.let { existing ->
             _activeTabId.value = existing.id
-            // v0.0.5 — track recent files even on tab re-activation.
             RecentFiles.add(uri)
-            return@withContext existing
+            return@withContext RepoResult.Success(existing)
         }
-        val doc = FileUtils.resolve(appContext, uri) ?: return@withContext null
+        val doc = FileUtils.resolve(appContext, uri) ?: return@withContext
+            RepoResult.Failure<EditorTab>("Cannot resolve file — it may have been moved or deleted")
         val name = doc.name ?: uri.lastPathSegment ?: "Untitled"
         val mime = doc.type
         val language = LanguageDetector.detect(name, mime)
-        val content = runCatching { FileUtils.readText(appContext, uri) }.getOrElse {
-            // Failed to read — surface an empty tab so the user can see
-            // the error toast instead of a blank screen.
-            ""
+        val contentResult = runCatching { FileUtils.readText(appContext, uri) }
+        val content = contentResult.getOrElse {
+            return@withContext RepoResult.Failure<EditorTab>(
+                "Cannot read file: ${it.message ?: "unknown error"}",
+                it,
+            )
         }
         val size = if (doc.isDirectory) 0L else doc.length()
-        val readOnly = size > MAX_INLINE_BYTES
+        val truncated = size > MAX_INLINE_BYTES
+        val readOnly = truncated
         val tab = EditorTab(
             uri = uri,
             name = name,
@@ -110,32 +131,25 @@ class FileRepository(private val appContext: Context) {
             content = content,
             originalContent = content,
             readOnly = readOnly,
+            truncated = truncated,
         )
         _tabs.update { it + tab }
         _activeTabId.value = tab.id
-        // v0.0.5 — add the file to the recent-files list.
         RecentFiles.add(uri)
-        tab
+        if (truncated) {
+            RepoResult.Success(tab) // The screen surfaces a "truncated" hint.
+        } else {
+            RepoResult.Success(tab)
+        }
     }
 
-    suspend fun openExternalFile(uri: Uri): EditorTab? {
-        // External URIs (content://) arrive via ACTION_VIEW intents. The
-        // granted read permission is transient and tied to the Activity
-        // — without persisting it, saving later will throw
-        // SecurityException.
-        //
-        // Not every content provider supports persistable permissions, so
-        // we wrap the takePersistableUriPermission call in runCatching
-        // and continue even if it fails (the user can still view the
-        // file; only future writes will fail).
+    suspend fun openExternalFile(uri: Uri): RepoResult<EditorTab> {
         if (uri.toString().startsWith("content://")) {
             runCatching {
                 val flags = android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION or
                     android.content.Intent.FLAG_GRANT_WRITE_URI_PERMISSION
                 appContext.contentResolver.takePersistableUriPermission(uri, flags)
             }
-            // Some providers throw if WRITE isn't granted; fall back to
-            // READ-only so at least the file can be displayed.
             runCatching {
                 appContext.contentResolver.takePersistableUriPermission(
                     uri,
@@ -146,21 +160,30 @@ class FileRepository(private val appContext: Context) {
         return openFile(uri)
     }
 
-    suspend fun saveTab(tabId: String): Boolean = withContext(Dispatchers.IO) {
-        val tab = _tabs.value.firstOrNull { it.id == tabId } ?: return@withContext false
-        runCatching {
+    /**
+     * v0.0.7 — returns [RepoResult] so save failures surface to the
+     * user via a snackbar (previously the failure was silently
+     * swallowed and the user thought the file was saved).
+     */
+    suspend fun saveTab(tabId: String): RepoResult<Unit> = withContext(Dispatchers.IO) {
+        val tab = _tabs.value.firstOrNull { it.id == tabId } ?: return@withContext
+            RepoResult.Failure<Unit>("Tab not found: $tabId")
+        val result = runCatching {
             FileUtils.writeText(appContext, tab.uri, tab.content)
             _tabs.update { tabs ->
                 tabs.map { if (it.id == tabId) it.copy(originalContent = it.content) else it }
             }
-            true
-        }.getOrElse { false }
+        }
+        result.fold(
+            onSuccess = { RepoResult.Success(Unit) },
+            onFailure = { RepoResult.Failure("Save failed: ${it.message ?: "unknown error"}", it) },
+        )
     }
 
     /** Auto-save hook — only writes if the tab is dirty. */
-    suspend fun saveTabIfDirty(tabId: String): Boolean {
-        val tab = _tabs.value.firstOrNull { it.id == tabId } ?: return false
-        if (!tab.isDirty) return true
+    suspend fun saveTabIfDirty(tabId: String): RepoResult<Unit> {
+        val tab = _tabs.value.firstOrNull { it.id == tabId } ?: return RepoResult.Failure("Tab not found: $tabId")
+        if (!tab.isDirty) return RepoResult.Success(Unit)
         return saveTab(tabId)
     }
 
@@ -170,11 +193,6 @@ class FileRepository(private val appContext: Context) {
         }
     }
 
-    /**
-     * Updates the saved caret position (line + column, 0-indexed) of a
-     * tab without touching its content. Called by [CodeEditor] on every
-     * edit so the caret survives tab switches and process death.
-     */
     fun updateTabCursor(tabId: String, line: Int, column: Int) {
         _tabs.update { tabs ->
             tabs.map {
@@ -211,7 +229,6 @@ class FileRepository(private val appContext: Context) {
             node
         }
 
-    /** v0.0.4 — duplicates a file or folder next to its original. */
     suspend fun duplicate(uri: Uri): FileNode? = withContext(Dispatchers.IO) {
         val parent = _tree.value.entries.firstOrNull { (_, kids) -> kids.any { it.uri == uri } }?.key
             ?: return@withContext null
@@ -220,21 +237,16 @@ class FileRepository(private val appContext: Context) {
         node
     }
 
-    /** v0.0.4 — workspace-wide text search. */
     suspend fun searchInFiles(rootUri: Uri, query: String): List<FileUtils.SearchHit> =
         withContext(Dispatchers.IO) {
             FileUtils.searchInFiles(appContext, rootUri, query)
         }
 
     /**
-     * v0.0.6 — extracts a ZIP picked via SAF into a new subfolder under
-     * `projects/` and returns the [FileNode] of the extracted folder so
-     * the caller can immediately switch to it.
-     *
-     * Returns null if extraction failed. The caller is responsible for
-     * surfacing the error to the user.
+     * v0.0.7 — returns [RepoResult] so extraction errors surface to
+     * the user (previously the caller got null and had no idea why).
      */
-    suspend fun extractZipToProjects(zipUri: Uri, suggestedName: String? = null): FileNode? =
+    suspend fun extractZipToProjects(zipUri: Uri, suggestedName: String? = null): RepoResult<FileNode> =
         withContext(Dispatchers.IO) {
             runCatching {
                 val dir = FileUtils.extractZipToProjects(appContext, zipUri, suggestedName)
@@ -250,11 +262,14 @@ class FileRepository(private val appContext: Context) {
                 )
                 _openFolder.value = root
                 refreshDirectory(uri)
+                com.vipercode.ide.data.prefs.RecentFolders.add(uri)
                 root
-            }.getOrNull()
+            }.fold(
+                onSuccess = { RepoResult.Success(it) },
+                onFailure = { RepoResult.Failure("ZIP extraction failed: ${it.message ?: "unknown error"}", it) },
+            )
         }
 
-    /** v0.0.6 — lists all extracted project folders as [FileNode]s. */
     suspend fun listExtractedProjects(): List<FileNode> = withContext(Dispatchers.IO) {
         FileUtils.listExtractedProjects(appContext).map { dir ->
             val uri = android.net.Uri.fromFile(dir)
@@ -270,14 +285,35 @@ class FileRepository(private val appContext: Context) {
         }
     }
 
+    /**
+     * v0.0.7 — re-resolves the renamed DocumentFile and updates the
+     * tab's `uri` field to the new URI returned by SAF. This was a
+     * critical bug in v0.0.6: after a rename, saves wrote to the
+     * old URI which may not exist anymore.
+     *
+     * Returns true on success. The caller is responsible for surfacing
+     * failure (e.g., a snackbar).
+     */
     suspend fun rename(uri: Uri, newName: String): Boolean = withContext(Dispatchers.IO) {
         val ok = FileUtils.rename(appContext, uri, newName)
         val parent = _tree.value.entries.firstOrNull { (_, kids) -> kids.any { it.uri == uri } }?.key
         if (parent != null) refreshDirectory(parent)
-        // Also rename the tab if it is open so the title bar updates.
         if (ok) {
+            // v0.0.7 — re-resolve the renamed DocumentFile to obtain
+            // the new URI (SAF may or may not change the URI on
+            // renameTo, depending on the provider). If the URI is
+            // unchanged, this is a no-op. If it changed, we update
+            // the tab's `uri` field so future saves hit the new path.
+            val newDoc = FileUtils.resolve(appContext, uri)
+            val newUri = if (newDoc != null && newDoc.exists()) {
+                val docUri = newDoc.uri
+                if (docUri != uri) docUri else uri
+            } else uri
+
             _tabs.update { tabs ->
-                tabs.map { if (it.uri == uri) it.copy(name = newName) else it }
+                tabs.map {
+                    if (it.uri == uri) it.copy(uri = newUri, name = newName) else it
+                }
             }
         }
         ok
@@ -287,7 +323,6 @@ class FileRepository(private val appContext: Context) {
         val ok = FileUtils.delete(appContext, uri)
         val parent = _tree.value.entries.firstOrNull { (_, kids) -> kids.any { it.uri == uri } }?.key
         if (parent != null) refreshDirectory(parent)
-        // Close any open tab whose URI is below the deleted node.
         if (ok) {
             _tabs.update { tabs -> tabs.filterNot { it.uri == uri || it.uri.toString().startsWith(uri.toString() + "/") } }
             if (_activeTabId.value?.let { id -> _tabs.value.none { it.id == id } } == true) {

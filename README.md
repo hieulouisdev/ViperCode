@@ -28,15 +28,17 @@ designed from the ground up with the Android Storage Access Framework,
 Material 3 theming, and a fully Compose-native UI — no legacy view
 system, no compromises on startup latency or rendering performance.
 
-ViperCode v0.0.5 ships a complete rewrite of the live preview pipeline
-(fixes the long-standing "preview không chạy hoàn toàn file" complaint),
-adds **bracket auto-completion**, a **Markdown live preview**, a
-**JavaScript console overlay**, a **recent files** row, a **share**
-action, a **comment toggle**, an **editor status bar**, and a new CI
-workflow that catches compile errors on every PR before they reach a
-release.
+ViperCode v0.0.7 ships a major reliability + UI polish release:
+the auto-save race condition that could corrupt files is fixed,
+rename now updates the tab URI so subsequent saves actually work,
+the font family setting is wired up, syntax highlighting for
+Python triple-quoted strings / Markdown headings / multi-char
+numeric suffixes is fixed, the `<`/`>` bracket matching in
+non-HTML/XML languages is fixed, and the editor UI gets cleaner
+tap targets, a dynamic gutter width, a truncated-file banner,
+an animated dirty-tab indicator, and a tap-to-skip splash.
 
-## Features (v0.0.5)
+## Features (v0.0.7)
 
 ### Editor core
 
@@ -303,6 +305,15 @@ The v0.0.x line focuses on the editing experience:
 - **v0.0.5** — Preview rewrite (viewport, console, link handling),
   bracket auto-completion, Markdown preview, comment toggle, recent
   files, share, status bar, new CI workflow, dynamic release notes.
+- **v0.0.6** — ZIP upload + project extraction, switch-folder sheet,
+  SAF picker primary-root hint, expanded-state bug fixes.
+- **v0.0.7** — Auto-save race fix, font family wired up, rename URI
+  fix, Python triple-quoted strings, Markdown `#` heading detection,
+  multi-char numeric suffixes, `<`/`>` bracket matching restricted to
+  HTML/XML, binary-search line/column maths, single-pass search &
+  replace, larger tap targets (48 dp), dynamic gutter width,
+  truncated-file banner, animated dirty-tab indicator, tap-to-skip
+  splash, tightened ProGuard rules, removed `VIBRATE` permission.
 - **v0.1.0** — Integrated terminal (Termux-compatible), LSP bridge for
   Kotlin/Java.
 

@@ -333,7 +333,12 @@ object FileUtils {
                     }
                 }
             }
-        } catch (_: Throwable) {
+        } catch (e: Throwable) {
+            // v0.0.7 — rethrow coroutine cancellation so structured
+            // concurrency works correctly. Previously this swallowed
+            // ALL throwables including CancellationException, which
+            // silently broke structured concurrency.
+            if (e is kotlinx.coroutines.CancellationException) throw e
             // Best-effort copy — ignore failures on individual files.
         }
     }
@@ -391,7 +396,10 @@ object FileUtils {
                 } catch (_: Throwable) {
                     null
                 } ?: continue
-                val idx = text.lowercase().indexOf(qLower)
+                // v0.0.7 — use indexOf with ignoreCase = true instead of
+                // lowercasing the entire file content (was 2× allocation
+                // per hit check on a 1MB file).
+                val idx = text.indexOf(q, ignoreCase = true)
                 if (idx >= 0) {
                     val (line, col) = lineColForOffset(text, idx)
                     results.add(SearchHit(child.uri, name, line, col, matchedInName = false))
@@ -401,16 +409,36 @@ object FileUtils {
         results
     }
 
+    /**
+     * v0.0.7 — O(log n) binary search on a precomputed line-starts
+     * array. Previously O(offset) per call; for a 1MB file a hit at
+     * the end was 1M iterations.
+     */
     private fun lineColForOffset(text: String, offset: Int): Pair<Int, Int> {
-        var line = 1
-        var col = 1
+        val safe = offset.coerceIn(0, text.length)
+        val starts = computeLineStarts(text)
+        if (starts.isEmpty()) return 1 to 1
+        var lo = 0
+        var hi = starts.size - 1
+        while (lo < hi) {
+            val mid = (lo + hi + 1) ushr 1
+            if (starts[mid] <= safe) lo = mid else hi = mid - 1
+        }
+        // line is 1-indexed in the SearchHit contract
+        return (lo + 1) to (safe - starts[lo] + 1)
+    }
+
+    private fun computeLineStarts(text: String): IntArray {
+        val count = text.count { it == '\n' } + 1
+        val starts = IntArray(count)
+        starts[0] = 0
+        var idx = 1
         var i = 0
-        val end = offset.coerceAtMost(text.length)
-        while (i < end) {
-            if (text[i] == '\n') { line++; col = 1 } else col++
+        while (i < text.length && idx < count) {
+            if (text[i] == '\n') { starts[idx] = i + 1; idx++ }
             i++
         }
-        return line to col
+        return starts
     }
 
     /** A single search hit — used by [searchInFiles]. */

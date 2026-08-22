@@ -45,6 +45,12 @@ data class EditorTab(
     val cursorColumn: Int = 0,
     val encoding: String = "UTF-8",
     val readOnly: Boolean = false,
+    /**
+     * v0.0.7 — set when the source file exceeds the inline-edit
+     * threshold (5 MB). The editor shows a banner indicating the
+     * content is truncated.
+     */
+    val truncated: Boolean = false,
 ) {
     val isDirty: Boolean get() = content != originalContent
 }

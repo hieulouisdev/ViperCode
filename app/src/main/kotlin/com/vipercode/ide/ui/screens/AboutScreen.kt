@@ -65,7 +65,7 @@ fun AboutScreen(onBack: () -> Unit) {
                 title = { Text(s.aboutTitle) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = s.editorBack)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -109,6 +109,10 @@ fun AboutScreen(onBack: () -> Unit) {
                         s.aboutFeature12,
                         s.aboutFeature13,
                         s.aboutFeature14,
+                        s.aboutFeature15,
+                        s.aboutFeature16,
+                        s.aboutFeature17,
+                        s.aboutFeature18,
                     ),
                 )
                 SectionTitle(s.aboutTechStack)
@@ -116,7 +120,7 @@ fun AboutScreen(onBack: () -> Unit) {
                     items = listOf(
                         "Kotlin 2.0.21",
                         "Jetpack Compose (BOM 2024.12.01)",
-                        "Material 3 (Material Components 1.12.0)",
+                        "Material 3 (Jetpack Compose Material3)",
                         "Android Gradle Plugin 8.7.3",
                         "Gradle 8.11.1 (Kotlin DSL)",
                         "AndroidX DataStore Preferences",

@@ -21,8 +21,8 @@ name: Build Release APK
 #    warm-cache builds across releases are faster.
 #  - Better error messages on missing APK output.
 #
-# v0.0.6 changes:
-#  - Default `tag_name` input updated to v0.0.6 (was v0.0.5).
+# v0.0.7 changes:
+#  - Default `tag_name` input updated to v0.0.7 (was v0.0.6).
 
 on:
   release:
@@ -32,7 +32,7 @@ on:
       tag_name:
         description: 'Tag name to attach the APK to (must already exist)'
         required: true
-        default: 'v0.0.6'
+        default: 'v0.0.7'
 
 jobs:
   build:
@@ -126,10 +126,10 @@ jobs:
         run: |
           # The release tag name is either the GitHub event tag (for
           # `release.published`) or the manual input (for
-          # `workflow_dispatch`). Default to v0.0.6.
+          # `workflow_dispatch`). Default to v0.0.7.
           TAG_NAME="${{ github.event.release.tag_name || inputs.tag_name }}"
           if [ -z "$TAG_NAME" ]; then
-            TAG_NAME="v0.0.6"
+            TAG_NAME="v0.0.7"
           fi
           # Strip leading "v" for the bare version string.
           VERSION="${TAG_NAME#v}"
