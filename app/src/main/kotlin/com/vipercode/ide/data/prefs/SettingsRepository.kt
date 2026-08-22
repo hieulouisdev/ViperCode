@@ -82,6 +82,16 @@ object SettingsRepository {
     // folder they previously picked without re-opening the SAF picker.
     val recentFolders = Pref(String::class.java, "recent_folders", "")
 
+    // v0.0.8 — autocomplete toggle. Defaults to true; the popup
+    // appears as the user types ≥ 2 word characters in code files.
+    val autocompleteEnabled = Pref(Boolean::class.javaObjectType, "autocomplete_enabled", true)
+
+    // v0.0.8 — line operations quick-access (move up/down, duplicate,
+    // delete line). Exposed as a single "show line ops in overflow"
+    // toggle so users who don't want the extra menu items can hide
+    // them.
+    val lineOpsInOverflow = Pref(Boolean::class.javaObjectType, "line_ops_in_overflow", true)
+
     fun init(context: Context) {
         ctx = context.applicationContext
     }

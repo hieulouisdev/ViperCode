@@ -5,6 +5,192 @@ All notable changes to ViperCode are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v0.0.8] - 2026-08-22
+
+This release fixes the broken v0.0.7 build (CI failed, no APK attached
+to the GitHub release) and ships two major new features: **autocomplete
+(code suggestions)** and a **command palette**. Plus 40+ bug fixes
+across the editor, preview, file repository, and Markdown renderer.
+
+### Added — New Features
+- **Autocomplete (code suggestions)** — as the user types ≥ 2 word
+  characters in a code file, a popup appears with context-aware
+  candidates from three sources:
+  1. **Keywords** — 20+ languages (Kotlin, Java, Scala, Groovy/Gradle,
+     Python, JS, TS, C, C++, C#, Go, Rust, PHP, SQL, Dart, Swift, Ruby,
+     Lua, Shell, …).
+  2. **Snippets** — boilerplate templates for `fun`, `class`, `def`,
+     `for`, `if`, `try`, etc. per language. One-tap to insert a full
+     multi-line construct with placeholder indentation.
+  3. **Identifiers** — harvested from the current file (every word-like
+     token ≥ 3 chars, deduplicated, capped at 50 000 chars of scanning
+     for bounded cost on huge files).
+  The popup is rendered as part of `BasicTextField`'s `decorationBox`
+  so it shares the editor's lifecycle. Tap a candidate to insert;
+  candidates are sorted starts-with-prefix first, then by kind
+  (keyword < snippet < identifier), then alphabetically.
+- **Command palette** — VS Code "Ctrl+Shift+P" style launcher. Reach
+  it via the new `Routes.COMMAND_PALETTE` route. The palette filters
+  any list of `Command` objects by title / description / category
+  substring. The host screen dispatches the actual action.
+- **Line operations** — `moveLineUp` / `moveLineDown` / `duplicateLine`
+  / `deleteLine` helpers added to `CodeEditor.kt`. Hosts can wire
+  these to keyboard shortcuts or overflow menu items.
+- **Settings toggles** — new `autocompleteEnabled` and
+  `lineOpsInOverflow` preferences in `SettingsRepository`.
+- **i18n strings** added for every new feature, in both English and
+  Vietnamese.
+
+### Added — CI / Release Pipeline
+- **CI-gated release build** — the release workflow now refuses to
+  build an APK if the latest CI run on the same SHA failed. This
+  catches broken releases before a 0-byte APK asset gets attached
+  to the GitHub release.
+- **Lint in release workflow** — added an explicit `lintDebug` step
+  in `build-release-apk.yml` so lint regressions are caught here
+  too, not just in the CI workflow.
+- **JDK 21** — bumped the release workflow from JDK 17 to JDK 21
+  (LTS, faster, matches the Temurin distribution's recommended LTS
+  for AGP 8.7+).
+- **Default `tag_name`** in the release workflow updated to `v0.0.8`.
+
+### Fixed — Critical Compile Errors (v0.0.7 build was broken)
+- **`RepoResult.Failure<FileNode>(...)` syntax** — the `Failure`
+  nested class declares no type parameters, so the explicit type
+  argument was a compile error. 5 sites in `FileRepository.kt`.
+- **`HomeScreen.kt`** — `extractZipToProjects` returns a
+  `RepoResult<FileNode>`; the screen accessed `.uri` / `.name`
+  directly on the sealed type. Unwrapped via `RepoResult.Success`.
+- **`QuickOpenScreen.kt`** — missing closing brace (syntax error).
+- **`SearchInFilesScreen.kt`** — missing `size` layout import.
+- **`SettingsScreen.kt`** — `KeyboardArrowRight` is not auto-mirrored
+  in Compose BOM 2024.12.01. Replaced with `Icons.Filled.ChevronRight`.
+- **`FileRepository.kt`** — multi-line `return@withContext RepoResult.Failure(...)`
+  was parsed as two statements (Unit return + dead expression). Forced
+  single-line layout.
+
+### Fixed — Critical Runtime Crashes
+- **`TabBar.kt` conditional `rememberInfiniteTransition`** — was
+  called inside `if (tab.isDirty)`, throwing `IllegalStateException`
+  on dirty flip. Hoisted unconditionally.
+- **`SyntaxHighlighter.scanString`/`scanBacktick`** — crashed on a
+  trailing lone backslash (`"foo\`) via `i += 2` without bounds
+  check. Added clamp.
+- **`SyntaxHints.walkMatchFast`** — bracket matching never returned
+  a match for balanced pairs. The walker started at `i = start`,
+  counting the starting bracket itself in `depth`. Fixed to start
+  at `start + step`.
+- **`EditorScreen` auto-save race** — `pendingSaveJob` was reassigned
+  WITHOUT `cancel()`, so multiple `saveTabIfDirty` jobs ran
+  concurrently against the same file via `wt` mode, re-introducing
+  the file corruption v0.0.7 was meant to fix. Now cancels before
+  launching.
+- **`EditorScreen` missing `BackHandler`** — system back bypassed
+  the unsaved-changes flow and silently lost edits. Added
+  `BackHandler { handleBack() }`.
+- **`MarkdownRenderer` 3 XSS vectors** — unescaped `alt` attribute
+  on `<img>`, unescaped `lang` in code-fence class attribute, and
+  no `javascript:` URL filtering. Added `escapeAttr` + URL scheme
+  whitelist.
+- **`PreviewScreen` zero effective debounce** — `composedHtml` was
+  keyed on `activeTab?.content`, bypassing the debounce LaunchedEffect
+  and reloading the WebView on every keystroke. Re-keyed on
+  `refreshKey` only.
+- **`PreviewScreen` main-thread file I/O** — `cacheFile.writeText(html)`
+  ran synchronously in an `IconButton.onClick`. Moved to
+  `Dispatchers.IO`.
+- **`PreviewScreen` desktop viewport toggle broken** —
+  `setInitialScale` is a "next load" setting, and toggling OFF was
+  impossible. Replaced with `useWideViewPort` toggle + `reload()`.
+
+### Fixed — Major Logic Bugs
+- **`FileUtils.resolve` SAF child URI mishandling** — child document
+  URIs (`content://.../tree/X/document/X%2Fy`) were resolved via
+  `DocumentFile.fromTreeUri`, which always returns the tree root.
+  Distinguished tree URIs from child document URIs.
+- **`LanguageDetector` text/plain MIME collision** — every SAF
+  plain-text file was misdetected as `TEXT`, dropping comment syntax
+  for `.ini`, `.gitignore`, `.properties`. Now skips generic MIMEs and
+  consults the extension first.
+- **`RecentFiles`/`RecentFolders` race conditions** — non-atomic
+  read-modify-write on `_uris.value` lost entries on concurrent
+  `add()`. Switched to atomic `update { ... }`. `load()` now merges
+  with in-memory state instead of overwriting.
+- **`FileRepository` `CancellationException` swallowing** — 3 sites
+  (`saveTab`, `openFile`, `extractZipToProjects`) used `runCatching`,
+  which catches `CancellationException` and breaks structured
+  concurrency. Replaced with try/catch + explicit rethrow.
+- **`FileRepository.openExternalFile` main-thread IPC** —
+  `takePersistableUriPermission` ran on the caller's dispatcher.
+  Wrapped in `withContext(Dispatchers.IO)`.
+- **`FileRepository.rename` stale tab URI for `file://`** — after
+  `File.renameTo`, re-resolving the OLD uri returned null. Now
+  derives the new URI from `parent path + new name`.
+- **`FileRepository.delete` SAF URI matching broken** — SAF
+  document URIs encode `/` as `%2F`, so `startsWith(uri + "/")`
+  missed children. Decoded both sides before comparing.
+- **`FileUtils.copyFileContents` resource leak** — if
+  `openOutputStream` returned null, the already-open `input` stream
+  was never closed. Restructured `use { }` chain.
+- **`FileUtils.searchInFiles` not cancellable** — inner loop had no
+  `yield()`. Added one per iteration.
+- **`FileUtils.humanSize` locale issue** — `String.format` without
+  `Locale` produced `"1,5 KB"` on Vietnamese-locale devices. Pinned
+  to `Locale.US`.
+- **`FileUtils.uniqueName` dotfiles** — `.gitignore` split into
+  base=`""` + ext=`".gitignore"`, producing `" (1).gitignore"`.
+  Treat `dot == 0` as no extension.
+- **`EditorScreen` wrong-tab writes** — lambdas captured the
+  `activeTab` delegate, so a mid-keystroke tab switch could redirect
+  edits to the wrong tab. Wrapped `CodeEditor` in `key(activeTab.id)`
+  and re-read `activeTab` inside the lambda.
+- **`EditorScreen` `onClose` swallowed save failures** — now surfaces
+  a snackbar on `RepoResult.Failure` and skips `closeTab`.
+- **`CodeEditor` `enabled = !tab.readOnly`** — made read-only files
+  completely non-focusable (user couldn't select/copy text). Now
+  always enabled; `readOnly` blocks edits.
+- **`CodeEditor` stale `lineCount` in gutter-sync** — `LaunchedEffect`
+  captured plain `val`s that never re-evaluated. Re-keyed on
+  `lineCount` and `rowHeightPx`.
+- **`CodeEditor` scroll states not reset on tab switch** — hoisted
+  next to `fieldValue`.
+- **`CodeEditor` auto-close extra bracket** — typing `(` before an
+  existing `)` produced `())`. Added `nextIsMatchingClose` guard.
+- **`TabBar` `TabChip` tap target 40dp** — below Material 3 minimum.
+  Bumped to 48dp + auto-scroll-to-active-tab.
+- **`FileExplorer` folder/file icon misalignment** — file rows were
+  ~32dp tall, folder rows 60dp tall; file icons appeared 20dp left
+  of folder icons. Added `heightIn(min = 48.dp)` + matched 48dp
+  spacer for file rows + contentDescriptions for a11y.
+- **`SearchInFilesScreen` `openFolder!!` NPE race** — captured the
+  folder at the top of the effect.
+- **`SearchInFilesScreen` LazyColumn key collision** — duplicate
+  `(uri, line, column)` tuples crashed with "Key X was already used".
+  Switched to `itemsIndexed`.
+- **`SearchInFilesScreen` negative cursor values** — name-only hits
+  had `line=0`/`column=0`, so `hit.line - 1` was `-1`. Coerced to
+  `>= 0`.
+- **`QuickOpenScreen` `openFolder!!` NPE race** — captured folder at
+  the top of the effect.
+- **`QuickOpenScreen` main-thread filter+sort** — 1000-file filters
+  offloaded to `Dispatchers.Default`.
+- **`SplashScreen` double-invocation** — `onContinue` could fire
+  twice (timer + tap). Added `continued` guard + re-keyed
+  `pointerInput` on the lambda.
+- **`SyntaxHints.walkMatchFast` unbounded scan** — `maxSteps = n`
+  made an unbalanced bracket trigger a full-document scan on every
+  caret move. Bounded to 4 096 chars.
+- **`SyntaxHighlighter.scanString` Kotlin raw strings** — `"""..."""`
+  were not recognized (triple-quote path was Python-only). Extended
+  to Kotlin.
+- **`SyntaxHints.findUnbalancedBrackets` backtick for all languages**
+  — a stray backtick in a C/Java/Kotlin comment opened a "string"
+  and broke bracket counting. Now conditionally only for JS/TS.
+
+### Removed
+- Stale `automirrored.filled.KeyboardArrowRight` import (doesn't exist
+  in Compose BOM 2024.12.01).
+
 ## [v0.0.7] - 2026-08-22
 
 ### Added

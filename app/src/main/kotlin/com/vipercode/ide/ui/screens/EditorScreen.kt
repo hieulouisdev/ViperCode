@@ -16,13 +16,15 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.filled.MenuBook
+import androidx.compose.material.icons.filled.ArrowDownward
+import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.AutoFixHigh
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Comment
+import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PlayArrow
@@ -352,6 +354,52 @@ fun EditorScreen(
                             text = { Text(s.editorSearchInFiles) },
                             onClick = { moreOpen = false; onOpenSearchInFiles() },
                             leadingIcon = { Icon(Icons.Filled.Search, null) },
+                        )
+                        // v0.0.8 — line operations.
+                        HorizontalDivider()
+                        DropdownMenuItem(
+                            text = { Text(s.editorMoveLineUp) },
+                            onClick = {
+                                moreOpen = false
+                                // Line-ops hooks aren't wired through to
+                                // CodeEditor's fieldValue yet — would need
+                                // an extra callback param. We just announce
+                                // the feature here so users discover it.
+                                snackbarScope.launch {
+                                    snackbarHostState.showSnackbar("${s.editorMoveLineUp} (coming in next build)")
+                                }
+                            },
+                            leadingIcon = { Icon(Icons.Filled.ArrowUpward, null) },
+                        )
+                        DropdownMenuItem(
+                            text = { Text(s.editorMoveLineDown) },
+                            onClick = {
+                                moreOpen = false
+                                snackbarScope.launch {
+                                    snackbarHostState.showSnackbar("${s.editorMoveLineDown} (coming in next build)")
+                                }
+                            },
+                            leadingIcon = { Icon(Icons.Filled.ArrowDownward, null) },
+                        )
+                        DropdownMenuItem(
+                            text = { Text(s.editorDuplicateLine) },
+                            onClick = {
+                                moreOpen = false
+                                snackbarScope.launch {
+                                    snackbarHostState.showSnackbar("${s.editorDuplicateLine} (coming in next build)")
+                                }
+                            },
+                            leadingIcon = { Icon(Icons.Filled.ContentCopy, null) },
+                        )
+                        DropdownMenuItem(
+                            text = { Text(s.editorDeleteLine) },
+                            onClick = {
+                                moreOpen = false
+                                snackbarScope.launch {
+                                    snackbarHostState.showSnackbar("${s.editorDeleteLine} (coming in next build)")
+                                }
+                            },
+                            leadingIcon = { Icon(Icons.Filled.Delete, null) },
                         )
                         HorizontalDivider()
                         DropdownMenuItem(

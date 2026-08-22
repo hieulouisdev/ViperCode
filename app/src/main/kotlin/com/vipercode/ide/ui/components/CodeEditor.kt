@@ -917,3 +917,72 @@ private fun CompletionPopup(
         }
     }
 }
+
+/**
+ * v0.0.8 — Line operations (move up / down, duplicate, delete).
+ *
+ * Each function takes the current [TextFieldValue] and returns a new
+ * one with the operation applied. The caller (EditorScreen) wires
+ * these to keyboard shortcuts or top-bar overflow menu items.
+ */
+fun moveLineUp(value: TextFieldValue): TextFieldValue {
+    val text = value.text
+    val sel = value.selection
+    val caret = sel.min
+    val lineStarts = computeLineStarts(text)
+    val (curLine, colInLine) = lineColumnFromOffset(text, caret, lineStarts)
+    if (curLine <= 0) return value  // already at the top
+    val curStart = lineStarts[curLine]
+    val prevStart = lineStarts[curLine - 1]
+    val curEnd = if (curLine + 1 < lineStarts.size) lineStarts[curLine + 1] else text.length
+    val prevEnd = curStart  // current line's start is the previous line's end (incl \n)
+    val curBlock = text.substring(curStart, curEnd)
+    val prevBlock = text.substring(prevStart, prevEnd)
+    val newText = text.substring(0, prevStart) + curBlock + prevBlock + text.substring(curEnd)
+    val newCaret = prevStart + colInLine + (curBlock.length - prevBlock.length).coerceAtLeast(0)
+    return value.copy(text = newText, selection = TextRange(newCaret.coerceIn(0, newText.length)))
+}
+
+fun moveLineDown(value: TextFieldValue): TextFieldValue {
+    val text = value.text
+    val sel = value.selection
+    val caret = sel.min
+    val lineStarts = computeLineStarts(text)
+    val (curLine, colInLine) = lineColumnFromOffset(text, caret, lineStarts)
+    if (curLine >= lineStarts.size - 1) return value  // already at the bottom
+    val curStart = lineStarts[curLine]
+    val nextStart = lineStarts[curLine + 1]
+    val curEnd = nextStart  // current line ends where next line starts (incl \n)
+    val nextEnd = if (curLine + 2 < lineStarts.size) lineStarts[curLine + 2] else text.length
+    val curBlock = text.substring(curStart, curEnd)
+    val nextBlock = text.substring(nextStart, nextEnd)
+    val newText = text.substring(0, curStart) + nextBlock + curBlock + text.substring(nextEnd)
+    val newCaret = curStart + nextBlock.length + colInLine
+    return value.copy(text = newText, selection = TextRange(newCaret.coerceIn(0, newText.length)))
+}
+
+fun duplicateLine(value: TextFieldValue): TextFieldValue {
+    val text = value.text
+    val caret = value.selection.min
+    val lineStarts = computeLineStarts(text)
+    val (curLine, _) = lineColumnFromOffset(text, caret, lineStarts)
+    val curStart = lineStarts[curLine]
+    val curEnd = if (curLine + 1 < lineStarts.size) lineStarts[curLine + 1] else text.length
+    val curLineText = text.substring(curStart, curEnd)
+    val newText = text.substring(0, curEnd) + curLineText + text.substring(curEnd)
+    // Caret stays on the same logical character of the duplicated line.
+    val newCaret = caret + curLineText.length
+    return value.copy(text = newText, selection = TextRange(newCaret.coerceIn(0, newText.length)))
+}
+
+fun deleteLine(value: TextFieldValue): TextFieldValue {
+    val text = value.text
+    val caret = value.selection.min
+    val lineStarts = computeLineStarts(text)
+    val (curLine, _) = lineColumnFromOffset(text, caret, lineStarts)
+    val curStart = lineStarts[curLine]
+    val curEnd = if (curLine + 1 < lineStarts.size) lineStarts[curLine + 1] else text.length
+    val newText = text.substring(0, curStart) + text.substring(curEnd)
+    val newCaret = curStart.coerceIn(0, newText.length)
+    return value.copy(text = newText, selection = TextRange(newCaret))
+}

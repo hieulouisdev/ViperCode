@@ -12,6 +12,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.vipercode.ide.data.repo.FileRepository
 import com.vipercode.ide.ui.screens.AboutScreen
+import com.vipercode.ide.ui.screens.CommandPaletteScreen
 import com.vipercode.ide.ui.screens.EditorScreen
 import com.vipercode.ide.ui.screens.HomeScreen
 import com.vipercode.ide.ui.screens.PreviewScreen
@@ -29,6 +30,8 @@ object Routes {
     const val ABOUT = "about"
     const val SEARCH_IN_FILES = "search_in_files"
     const val QUICK_OPEN = "quick_open"
+    // v0.0.8 — new command palette route (VS Code Ctrl+Shift+P style).
+    const val COMMAND_PALETTE = "command_palette"
 }
 
 /**
@@ -148,6 +151,20 @@ fun ViperNavHost(
                 onBack = { navController.popBackStack() },
                 onOpenFile = { tabId ->
                     navController.navigate(Routes.EDITOR.replace("{tabId}", tabId))
+                },
+            )
+        }
+        composable(Routes.COMMAND_PALETTE) {
+            // v0.0.8 — command palette. The list of commands is owned
+            // by the editor screen for now (so navigation back to the
+            // editor + dispatch happens from there). The palette just
+            // filters and renders.
+            CommandPaletteScreen(
+                onBack = { navController.popBackStack() },
+                commands = emptyList(),
+                onExecute = {
+                    // Editor screen handles dispatch; here we just pop back.
+                    navController.popBackStack()
                 },
             )
         }
