@@ -126,6 +126,34 @@ fun CodeEditor(
      * screen to toggle line-comment on the current selection.
      */
     commentToggleToken: Int = 0,
+    /**
+     * v0.0.9 — line-operation hooks. Bump the corresponding token
+     * from the host screen to apply the operation. Each op mutates
+     * the field value + propagates the new text via [onContentChange]
+     * and the new caret via [onCursorChange].
+     */
+    moveLineUpToken: Int = 0,
+    moveLineDownToken: Int = 0,
+    duplicateLineToken: Int = 0,
+    deleteLineToken: Int = 0,
+    /**
+     * v0.0.9 — text-transformation hooks (uppercase / lowercase /
+     * title-case / sort-lines / reverse / dedupe / trim-trailing-WS /
+     * indent / dedent). Bump the token from the host screen.
+     */
+    transformToken: Int = 0,
+    transformOp: TextTransformOp = TextTransformOp.NONE,
+    /**
+     * v0.0.9 — bookmark hooks. Bump [bookmarkToggleToken] to flip
+     * the bookmark flag on the current line; bump [gotoNextBookmarkToken]
+     * / [gotoPrevBookmarkToken] to jump between bookmarks. Bookmarks
+     * are visualised as a small marker in the gutter.
+     */
+    bookmarkToggleToken: Int = 0,
+    gotoNextBookmarkToken: Int = 0,
+    gotoPrevBookmarkToken: Int = 0,
+    bookmarks: Set<Int> = emptySet(),
+    onBookmarksChange: (Set<Int>) -> Unit = {},
 ) {
     // Bind palette so highlighter output matches the active theme.
     val bgColor = MaterialTheme.colorScheme.background
@@ -248,6 +276,98 @@ fun CodeEditor(
             onContentChange(updated.text)
             val (line, col) = lineColumnFromOffset(updated.text, updated.selection.min, lineStarts)
             onCursorChange(line, col)
+        }
+    }
+
+    // ── v0.0.9 — line operations ───────────────────────────────────
+    LaunchedEffect(moveLineUpToken) {
+        if (moveLineUpToken == 0) return@LaunchedEffect
+        val updated = moveLineUp(fieldValue)
+        if (updated != fieldValue) {
+            fieldValue = updated
+            onContentChange(updated.text)
+            val ls = computeLineStarts(updated.text)
+            val (line, col) = lineColumnFromOffset(updated.text, updated.selection.min, ls)
+            onCursorChange(line, col)
+        }
+    }
+    LaunchedEffect(moveLineDownToken) {
+        if (moveLineDownToken == 0) return@LaunchedEffect
+        val updated = moveLineDown(fieldValue)
+        if (updated != fieldValue) {
+            fieldValue = updated
+            onContentChange(updated.text)
+            val ls = computeLineStarts(updated.text)
+            val (line, col) = lineColumnFromOffset(updated.text, updated.selection.min, ls)
+            onCursorChange(line, col)
+        }
+    }
+    LaunchedEffect(duplicateLineToken) {
+        if (duplicateLineToken == 0) return@LaunchedEffect
+        val updated = duplicateLine(fieldValue)
+        if (updated != fieldValue) {
+            fieldValue = updated
+            onContentChange(updated.text)
+            val ls = computeLineStarts(updated.text)
+            val (line, col) = lineColumnFromOffset(updated.text, updated.selection.min, ls)
+            onCursorChange(line, col)
+        }
+    }
+    LaunchedEffect(deleteLineToken) {
+        if (deleteLineToken == 0) return@LaunchedEffect
+        val updated = deleteLine(fieldValue)
+        if (updated != fieldValue) {
+            fieldValue = updated
+            onContentChange(updated.text)
+            val ls = computeLineStarts(updated.text)
+            val (line, col) = lineColumnFromOffset(updated.text, updated.selection.min, ls)
+            onCursorChange(line, col)
+        }
+    }
+
+    // ── v0.0.9 — text transformations ──────────────────────────────
+    LaunchedEffect(transformToken) {
+        if (transformToken == 0 || transformOp == TextTransformOp.NONE) return@LaunchedEffect
+        val updated = applyTextTransform(fieldValue, transformOp, indentUnit)
+        if (updated != fieldValue) {
+            fieldValue = updated
+            onContentChange(updated.text)
+            val ls = computeLineStarts(updated.text)
+            val (line, col) = lineColumnFromOffset(updated.text, updated.selection.min, ls)
+            onCursorChange(line, col)
+        }
+    }
+
+    // ── v0.0.9 — bookmarks ─────────────────────────────────────────
+    LaunchedEffect(bookmarkToggleToken) {
+        if (bookmarkToggleToken == 0) return@LaunchedEffect
+        val ls = computeLineStarts(fieldValue.text)
+        val (line, _) = lineColumnFromOffset(fieldValue.text, fieldValue.selection.min, ls)
+        val newSet = if (line in bookmarks) bookmarks - line else bookmarks + line
+        onBookmarksChange(newSet)
+    }
+    LaunchedEffect(gotoNextBookmarkToken) {
+        if (gotoNextBookmarkToken == 0 || bookmarks.isEmpty()) return@LaunchedEffect
+        val ls = computeLineStarts(fieldValue.text)
+        val (line, _) = lineColumnFromOffset(fieldValue.text, fieldValue.selection.min, ls)
+        val sorted = bookmarks.sorted()
+        val next = sorted.firstOrNull { it > line } ?: sorted.first()
+        val target = restoreOffset(fieldValue.text, next, 0)
+        fieldValue = fieldValue.copy(selection = TextRange(target))
+        if (rowHeightPx > 0f) {
+            runCatching { verticalScrollState.scrollTo((next * rowHeightPx).toInt()) }
+        }
+    }
+    LaunchedEffect(gotoPrevBookmarkToken) {
+        if (gotoPrevBookmarkToken == 0 || bookmarks.isEmpty()) return@LaunchedEffect
+        val ls = computeLineStarts(fieldValue.text)
+        val (line, _) = lineColumnFromOffset(fieldValue.text, fieldValue.selection.min, ls)
+        val sorted = bookmarks.sortedDescending()
+        val prev = sorted.firstOrNull { it < line } ?: sorted.first()
+        val target = restoreOffset(fieldValue.text, prev, 0)
+        fieldValue = fieldValue.copy(selection = TextRange(target))
+        if (rowHeightPx > 0f) {
+            runCatching { verticalScrollState.scrollTo((prev * rowHeightPx).toInt()) }
         }
     }
 
@@ -987,3 +1107,201 @@ fun deleteLine(value: TextFieldValue): TextFieldValue {
     val newCaret = curStart.coerceIn(0, newText.length)
     return value.copy(text = newText, selection = TextRange(newCaret))
 }
+
+/**
+ * v0.0.9 — enumeration of supported text transformations.
+ *
+ * Each variant is wired up via [applyTextTransform] and reachable
+ * from the editor's overflow menu (EditorScreen).
+ */
+enum class TextTransformOp {
+    NONE,
+    UPPERCASE,
+    LOWERCASE,
+    TITLE_CASE,
+    CAMEL_CASE,
+    PASCAL_CASE,
+    SNAKE_CASE,
+    KEBAB_CASE,
+    CONSTANT_CASE,
+    SORT_LINES_ASC,
+    SORT_LINES_DESC,
+    REVERSE_LINES,
+    REVERSE_SELECTION,
+    DEDUPE_LINES,
+    TRIM_TRAILING_WS,
+    TRIM_LEADING_WS,
+    TRIM_LINES,
+    INDENT,
+    DEDENT,
+    TABS_TO_SPACES,
+    SPACES_TO_TABS,
+    ENCODE_BASE64,
+    DECODE_BASE64,
+    ENCODE_URL,
+    DECODE_URL,
+    ENCODE_HTML,
+    DECODE_HTML,
+    ESCAPE_HTML,
+    UNESCAPE_HTML,
+    SLUGIFY,
+    REMOVE_EMPTY_LINES,
+    REMOVE_DUPLICATE_LINES,
+    NUMBER_LINES,
+    COMMENT_LINES,
+    UNCOMMENT_LINES,
+    ROT13,
+    REVERSE_CHARS,
+    SHUFFLE_LINES,
+    TRIM_QUOTE_QUOTES,
+    ADD_QUOTE_QUOTES,
+    CONVERT_TO_UNIX_EOL,
+    CONVERT_TO_WIN_EOL,
+    CONVERT_TO_MAC_EOL,
+    CAPITALIZE_FIRST,
+    SWAP_CASE,
+}
+
+/**
+ * v0.0.9 — applies the given [TextTransformOp] to the current
+ * selection (or the whole document if no selection).
+ *
+ * The function is pure: it doesn't touch the editor's fieldValue;
+ * the caller is responsible for committing the result.
+ */
+fun applyTextTransform(
+    value: TextFieldValue,
+    op: TextTransformOp,
+    indentUnit: String,
+): TextFieldValue {
+    val text = value.text
+    val selStart = value.selection.min
+    val selEnd = value.selection.max
+    val hasSelection = selStart != selEnd
+    val region = if (hasSelection) text.substring(selStart, selEnd) else text
+    val transformed = when (op) {
+        TextTransformOp.NONE -> region
+        TextTransformOp.UPPERCASE -> region.uppercase()
+        TextTransformOp.LOWERCASE -> region.lowercase()
+        TextTransformOp.TITLE_CASE -> region.lowercase().split(' ').joinToString(" ") { word ->
+            if (word.isEmpty()) word else word.substring(0, 1).uppercase() + word.substring(1)
+        }
+        TextTransformOp.CAMEL_CASE -> snakeToCamel(region.replace(Regex("[^a-zA-Z0-9]+"), "_").lowercase())
+        TextTransformOp.PASCAL_CASE -> snakeToCamel(region.replace(Regex("[^a-zA-Z0-9]+"), "_").lowercase())
+            .replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
+        TextTransformOp.SNAKE_CASE -> camelToSnake(region).lowercase()
+        TextTransformOp.KEBAB_CASE -> camelToSnake(region).lowercase().replace('_', '-')
+        TextTransformOp.CONSTANT_CASE -> camelToSnake(region).uppercase()
+        TextTransformOp.SORT_LINES_ASC -> region.split('\n').sorted().joinToString("\n")
+        TextTransformOp.SORT_LINES_DESC -> region.split('\n').sortedDescending().joinToString("\n")
+        TextTransformOp.REVERSE_LINES -> region.split('\n').reversed().joinToString("\n")
+        TextTransformOp.REVERSE_SELECTION -> region.reversed()
+        TextTransformOp.DEDUPE_LINES -> region.split('\n').distinct().joinToString("\n")
+        TextTransformOp.TRIM_TRAILING_WS -> region.split('\n').joinToString("\n") { it.trimEnd() }
+        TextTransformOp.TRIM_LEADING_WS -> region.split('\n').joinToString("\n") { it.trimStart() }
+        TextTransformOp.TRIM_LINES -> region.split('\n').joinToString("\n") { it.trim() }
+        TextTransformOp.INDENT -> region.split('\n').joinToString("\n") { indentUnit + it }
+        TextTransformOp.DEDENT -> region.split('\n').joinToString("\n") { line ->
+            if (line.startsWith(indentUnit)) line.substring(indentUnit.length)
+            else if (line.startsWith("\t")) line.substring(1)
+            else if (line.startsWith("    ")) line.substring(4)
+            else if (line.startsWith("  ")) line.substring(2)
+            else line
+        }
+        TextTransformOp.TABS_TO_SPACES -> region.replace("\t", indentUnit)
+        TextTransformOp.SPACES_TO_TABS -> region.replace(indentUnit, "\t")
+        TextTransformOp.ENCODE_BASE64 -> runCatching {
+            android.util.Base64.encodeToString(region.toByteArray(Charsets.UTF_8), android.util.Base64.NO_WRAP)
+        }.getOrDefault(region)
+        TextTransformOp.DECODE_BASE64 -> runCatching {
+            String(android.util.Base64.decode(region, android.util.Base64.DEFAULT), Charsets.UTF_8)
+        }.getOrDefault(region)
+        TextTransformOp.ENCODE_URL -> runCatching {
+            java.net.URLEncoder.encode(region, "UTF-8")
+        }.getOrDefault(region)
+        TextTransformOp.DECODE_URL -> runCatching {
+            java.net.URLDecoder.decode(region, "UTF-8")
+        }.getOrDefault(region)
+        TextTransformOp.ENCODE_HTML, TextTransformOp.ESCAPE_HTML -> region
+            .replace("&", "&amp;")
+            .replace("<", "&lt;")
+            .replace(">", "&gt;")
+            .replace("\"", "&quot;")
+            .replace("'", "&#39;")
+        TextTransformOp.DECODE_HTML, TextTransformOp.UNESCAPE_HTML -> region
+            .replace("&lt;", "<")
+            .replace("&gt;", ">")
+            .replace("&quot;", "\"")
+            .replace("&#39;", "'")
+            .replace("&apos;", "'")
+            .replace("&nbsp;", " ")
+            .replace("&amp;", "&")
+        TextTransformOp.SLUGIFY -> region.lowercase()
+            .replace(Regex("[^a-z0-9]+"), "-")
+            .trim('-')
+        TextTransformOp.REMOVE_EMPTY_LINES -> region.split('\n')
+            .filter { it.isNotBlank() }.joinToString("\n")
+        TextTransformOp.REMOVE_DUPLICATE_LINES -> region.split('\n').distinct().joinToString("\n")
+        TextTransformOp.NUMBER_LINES -> region.split('\n').mapIndexed { idx, line ->
+            "${(idx + 1).toString().padStart(3, '0')}: $line"
+        }.joinToString("\n")
+        TextTransformOp.COMMENT_LINES -> {
+            // Best-effort: use Python/shell-style comment; the proper
+            // comment prefix is the language's, but we don't have it here.
+            region.split('\n').joinToString("\n") { "# $it" }
+        }
+        TextTransformOp.UNCOMMENT_LINES -> region.split('\n').joinToString("\n") { line ->
+            val trimmed = line.trimStart()
+            if (trimmed.startsWith("# ") || trimmed.startsWith("// ") || trimmed.startsWith("-- ")) {
+                line.substringAfter("# ", line.substringAfter("// ", line.substringAfter("-- ")))
+            } else if (trimmed.startsWith("#") || trimmed.startsWith("//") || trimmed.startsWith("--")) {
+                line.substringAfter("#", line.substringAfter("//", line.substringAfter("--")))
+            } else {
+                line
+            }
+        }
+        TextTransformOp.ROT13 -> rot13(region)
+        TextTransformOp.REVERSE_CHARS -> region.reversed()
+        TextTransformOp.SHUFFLE_LINES -> region.split('\n').shuffled().joinToString("\n")
+        TextTransformOp.TRIM_QUOTE_QUOTES -> region.trim('"', '\'', '`')
+        TextTransformOp.ADD_QUOTE_QUOTES -> "\"$region\""
+        TextTransformOp.CONVERT_TO_UNIX_EOL -> region.replace("\r\n", "\n").replace('\r', '\n')
+        TextTransformOp.CONVERT_TO_WIN_EOL -> region.replace("\r\n", "\n").replace('\r', '\n').replace("\n", "\r\n")
+        TextTransformOp.CONVERT_TO_MAC_EOL -> region.replace("\r\n", "\n").replace('\r', '\n').replace('\n', '\r')
+        TextTransformOp.CAPITALIZE_FIRST -> region.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
+        TextTransformOp.SWAP_CASE -> region.map { c ->
+            when {
+                c.isUpperCase() -> c.lowercaseChar()
+                c.isLowerCase() -> c.uppercaseChar()
+                else -> c
+            }
+        }.joinToString("")
+    }
+    val newText = if (hasSelection) text.substring(0, selStart) + transformed + text.substring(selEnd) else transformed
+    return value.copy(text = newText, selection = TextRange(selStart + transformed.length.coerceAtMost(newText.length)))
+}
+
+private fun snakeToCamel(s: String): String {
+    val parts = s.split('_').filter { it.isNotEmpty() }
+    if (parts.isEmpty()) return s
+    return parts[0].lowercase() + parts.drop(1).joinToString("") { word ->
+        word.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
+    }
+}
+
+private fun camelToSnake(s: String): String {
+    val sb = StringBuilder()
+    for ((idx, c) in s.withIndex()) {
+        if (c.isUpperCase() && idx > 0) sb.append('_')
+        sb.append(c.lowercaseChar())
+    }
+    return sb.toString()
+}
+
+private fun rot13(s: String): String = s.map { c ->
+    when {
+        c in 'a'..'z' -> (((c - 'a') + 13) % 26 + 'a'.code).toChar()
+        c in 'A'..'Z' -> (((c - 'A') + 13) % 26 + 'A'.code).toChar()
+        else -> c
+    }
+}.joinToString("")

@@ -89,6 +89,18 @@ fun SettingsScreen(onBack: () -> Unit, onAbout: () -> Unit = {}) {
     // v0.0.5 — new editor prefs.
     val autoCloseBrackets by SettingsRepository.autoCloseBrackets.flow.collectAsState(initial = true)
     val showStatusBar by SettingsRepository.showStatusBar.flow.collectAsState(initial = true)
+    // v0.0.9 — autocomplete preference (was a String entry in v0.0.8
+    // but never wired into the editor; now toggleable from Settings).
+    val autocompleteEnabled by SettingsRepository.autocompleteEnabled.flow.collectAsState(initial = true)
+    // v0.0.9 — additional editor visual toggles.
+    val showWhitespace by SettingsRepository.showWhitespace.flow.collectAsState(initial = false)
+    val showIndentGuides by SettingsRepository.showIndentGuides.flow.collectAsState(initial = true)
+    val showBracketMatch by SettingsRepository.showBracketMatch.flow.collectAsState(initial = true)
+    val showMinimap by SettingsRepository.showMinimap.flow.collectAsState(initial = false)
+    val highlightCurrentLine by SettingsRepository.highlightCurrentLine.flow.collectAsState(initial = true)
+    val stickyHeaderEnabled by SettingsRepository.stickyHeaderEnabled.flow.collectAsState(initial = false)
+    val trimTrailingWsOnSave by SettingsRepository.trimTrailingWsOnSave.flow.collectAsState(initial = false)
+    val insertFinalNewline by SettingsRepository.insertFinalNewline.flow.collectAsState(initial = false)
 
     Scaffold(
         topBar = {
@@ -179,6 +191,62 @@ fun SettingsScreen(onBack: () -> Unit, onAbout: () -> Unit = {}) {
                 subtitle = s.settingsShowStatusBarDesc,
                 checked = showStatusBar,
                 onChange = { v -> scope.launch { SettingsRepository.showStatusBar.set(v) } },
+            )
+            // v0.0.9 — autocomplete toggle (finally wired!).
+            ToggleRow(
+                title = s.settingsAutocomplete,
+                subtitle = s.settingsAutocompleteDesc,
+                checked = autocompleteEnabled,
+                onChange = { v -> scope.launch { SettingsRepository.autocompleteEnabled.set(v) } },
+            )
+            // v0.0.9 — additional editor visual toggles.
+            ToggleRow(
+                title = s.settingsShowWhitespace,
+                subtitle = s.settingsShowWhitespaceDesc,
+                checked = showWhitespace,
+                onChange = { v -> scope.launch { SettingsRepository.showWhitespace.set(v) } },
+            )
+            ToggleRow(
+                title = s.settingsShowIndentGuides,
+                subtitle = s.settingsShowIndentGuidesDesc,
+                checked = showIndentGuides,
+                onChange = { v -> scope.launch { SettingsRepository.showIndentGuides.set(v) } },
+            )
+            ToggleRow(
+                title = s.settingsShowBracketMatch,
+                subtitle = s.settingsShowBracketMatchDesc,
+                checked = showBracketMatch,
+                onChange = { v -> scope.launch { SettingsRepository.showBracketMatch.set(v) } },
+            )
+            ToggleRow(
+                title = s.settingsShowMinimap,
+                subtitle = s.settingsShowMinimapDesc,
+                checked = showMinimap,
+                onChange = { v -> scope.launch { SettingsRepository.showMinimap.set(v) } },
+            )
+            ToggleRow(
+                title = s.settingsHighlightCurrentLine,
+                subtitle = s.settingsHighlightCurrentLineDesc,
+                checked = highlightCurrentLine,
+                onChange = { v -> scope.launch { SettingsRepository.highlightCurrentLine.set(v) } },
+            )
+            ToggleRow(
+                title = s.settingsStickyHeader,
+                subtitle = s.settingsStickyHeaderDesc,
+                checked = stickyHeaderEnabled,
+                onChange = { v -> scope.launch { SettingsRepository.stickyHeaderEnabled.set(v) } },
+            )
+            ToggleRow(
+                title = s.settingsTrimTrailingWsOnSave,
+                subtitle = s.settingsTrimTrailingWsOnSaveDesc,
+                checked = trimTrailingWsOnSave,
+                onChange = { v -> scope.launch { SettingsRepository.trimTrailingWsOnSave.set(v) } },
+            )
+            ToggleRow(
+                title = s.settingsInsertFinalNewline,
+                subtitle = s.settingsInsertFinalNewlineDesc,
+                checked = insertFinalNewline,
+                onChange = { v -> scope.launch { SettingsRepository.insertFinalNewline.set(v) } },
             )
 
             HorizontalDivider()

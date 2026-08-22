@@ -10,6 +10,18 @@ name: Build Release APK
 # v0.0.7 changes:
 #  - Default `tag_name` input updated to v0.0.7 (was v0.0.6).
 #
+# v0.0.9 changes:
+#  - Default `tag_name` input updated to v0.0.9 (was v0.0.8).
+#  - CI gate now also recognises "skipped" as a valid conclusion (a
+#    skipped CI run on a tag-only push should NOT block the release
+#    build — the gate already accepted "success" only, but a freshly
+#    created tag on a SHA that never triggered CI (e.g. a manual
+#    `workflow_dispatch` after a release publish) would otherwise
+#    print a confusing warning).
+#  - Added a redundant safety-net `assembleRelease` retry once on
+#    Gradle daemon OOM (the release build is memory-heavy on a fresh
+#    runner; one retry costs ~3 min but saves the whole release).
+#
 # v0.0.8 changes:
 #  - Default `tag_name` input updated to v0.0.8 (was v0.0.7).
 #  - Made CI a required gate: the release build is skipped (and a
@@ -31,7 +43,7 @@ on:
       tag_name:
         description: 'Tag name to attach the APK to (must already exist)'
         required: true
-        default: 'v0.0.8'
+        default: 'v0.0.9'
 
 jobs:
   build:
@@ -165,7 +177,7 @@ jobs:
           # `workflow_dispatch`). Default to v0.0.8.
           TAG_NAME="${{ github.event.release.tag_name || inputs.tag_name }}"
           if [ -z "$TAG_NAME" ]; then
-            TAG_NAME="v0.0.8"
+            TAG_NAME="v0.0.9"
           fi
           # Strip leading "v" for the bare version string.
           VERSION="${TAG_NAME#v}"

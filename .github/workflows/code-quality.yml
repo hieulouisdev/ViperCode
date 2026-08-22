@@ -1,0 +1,96 @@
+name: Code Quality
+
+# v0.0.9 — new workflow. Runs `ktlintCheck` (via the ktlint-gradle
+# plugin, if/when added) and a `detekt` baseline scan (best-effort:
+# the job is `continue-on-error` until a detekt config lands). The
+# goal is to surface style/nit issues on every PR without blocking
+# the build — they can be addressed incrementally without forcing
+# a hard dependency on a tool that might break CI.
+#
+# Why a separate workflow (vs. folding into ci.yml)?
+#  - ci.yml is the release gate; we want it lean + fast.
+#  - Quality scans are advisory (continue-on-error for now), so
+#    they belong in a parallel job that doesn't gate releases.
+#  - The two workflows share the Gradle cache key prefix so they
+#    reuse each other's downloaded dependencies.
+
+on:
+  pull_request:
+    branches: [ main, master ]
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+concurrency:
+  group: quality-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  static-checks:
+    name: Static analysis (best-effort)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      checks: write  # required by actions/upload-artifact@v4 with reports
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: 'platforms;android-35 build-tools;35.0.0 platform-tools'
+
+      - name: Cache Gradle packages
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+            .gradle
+          key: gradle-quality-${{ runner.os }}-${{ hashFiles('**/*.gradle*', 'gradle/libs.versions.toml', 'gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: |
+            gradle-quality-${{ runner.os }}-
+            gradle-ci-${{ runner.os }}-
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x ./gradlew
+
+      # Run the existing Kotlin compiler warnings check via --continue
+      # so a single module failure doesn't mask others. We use the
+      # `compileDebugKotlin` task as a proxy for "does it typecheck".
+      - name: Type-check (compileDebugKotlin)
+        run: ./gradlew compileDebugKotlin --no-daemon --build-cache --continue --stacktrace
+
+      # Best-effort: run ktlintCheck if the plugin is added. This is a
+      # no-op if the plugin isn't configured.
+      - name: ktlint (best-effort)
+        continue-on-error: true
+        run: ./gradlew ktlintCheck --no-daemon --build-cache --continue || true
+
+      # Best-effort: run detekt if a config exists. Same no-op guard.
+      - name: detekt (best-effort)
+        continue-on-error: true
+        run: ./gradlew detekt --no-daemon --build-cache --continue || true
+
+      - name: Upload reports (if any)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ViperCode-quality-reports-${{ github.run_number }}
+          path: |
+            **/build/reports/ktlint/
+            **/build/reports/detekt/
+            **/build/reports/lint-results-*.html
+          if-no-files-found: warn
+          retention-days: 14

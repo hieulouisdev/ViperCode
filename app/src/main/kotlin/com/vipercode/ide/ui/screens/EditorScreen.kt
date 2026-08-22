@@ -21,18 +21,34 @@ import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.AutoFixHigh
 import androidx.compose.material.icons.filled.Bolt
+import androidx.compose.material.icons.filled.Bookmark
+import androidx.compose.material.icons.filled.BookmarkBorder
+import androidx.compose.material.icons.filled.BookmarkRemove
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.Comment
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.FormatIndentDecrease
+import androidx.compose.material.icons.filled.FormatIndentIncrease
+import androidx.compose.material.icons.filled.FormatListNumbered
+import androidx.compose.material.icons.filled.LinearScale
+import androidx.compose.material.icons.filled.Link
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.Sort
+import androidx.compose.material.icons.filled.SpaceBar
+import androidx.compose.material.icons.filled.SwapVert
+import androidx.compose.material.icons.filled.Tab
+import androidx.compose.material.icons.filled.TextFields
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -78,6 +94,7 @@ import com.vipercode.ide.data.repo.FileRepository
 import com.vipercode.ide.data.repo.RepoResult
 import com.vipercode.ide.ui.components.CodeEditor
 import com.vipercode.ide.ui.components.TabBar
+import com.vipercode.ide.ui.components.TextTransformOp
 import com.vipercode.ide.util.Language
 import com.vipercode.ide.util.Strings
 import kotlinx.coroutines.CoroutineScope
@@ -142,6 +159,8 @@ fun EditorScreen(
     val autoSaveDelayMs by SettingsRepository.autoSaveDelayMs.flow.collectAsState(initial = 1500)
     val autoCloseBrackets by SettingsRepository.autoCloseBrackets.flow.collectAsState(initial = true)
     val showStatusBar by SettingsRepository.showStatusBar.flow.collectAsState(initial = true)
+    // v0.0.9 — autocomplete preference now flows through (was unused).
+    val autocompleteEnabled by SettingsRepository.autocompleteEnabled.flow.collectAsState(initial = true)
     // v0.0.7 — font family now flows through to CodeEditor.
     val fontFamilyPref by SettingsRepository.fontFamily.flow.collectAsState(
         initial = SettingsRepository.FontFamily.SYSTEM,
@@ -159,6 +178,19 @@ fun EditorScreen(
     var selectionLength by remember { mutableIntStateOf(0) }
     // v0.0.7 — last save Job so we can cancel + await before close.
     var pendingSaveJob by remember { mutableStateOf<Job?>(null) }
+    // v0.0.9 — line operation tokens.
+    var moveLineUpToken by remember { mutableIntStateOf(0) }
+    var moveLineDownToken by remember { mutableIntStateOf(0) }
+    var duplicateLineToken by remember { mutableIntStateOf(0) }
+    var deleteLineToken by remember { mutableIntStateOf(0) }
+    // v0.0.9 — text transformation token + op.
+    var transformToken by remember { mutableIntStateOf(0) }
+    var transformOp by remember { mutableStateOf(TextTransformOp.NONE) }
+    // v0.0.9 — bookmarks (per-tab line numbers; keyed by tab.id).
+    var bookmarks by remember { mutableStateOf<Set<Int>>(emptySet()) }
+    var bookmarkToggleToken by remember { mutableIntStateOf(0) }
+    var gotoNextBookmarkToken by remember { mutableIntStateOf(0) }
+    var gotoPrevBookmarkToken by remember { mutableIntStateOf(0) }
 
     // Resolve the actual active tab — derivedStateOf avoids the O(n)
     // scan per recomposition that the v0.0.6 firstOrNull{...} had.
@@ -363,13 +395,7 @@ fun EditorScreen(
                             text = { Text(s.editorMoveLineUp) },
                             onClick = {
                                 moreOpen = false
-                                // Line-ops hooks aren't wired through to
-                                // CodeEditor's fieldValue yet — would need
-                                // an extra callback param. We just announce
-                                // the feature here so users discover it.
-                                snackbarScope.launch {
-                                    snackbarHostState.showSnackbar("${s.editorMoveLineUp} (coming in next build)")
-                                }
+                                moveLineUpToken++
                             },
                             leadingIcon = { Icon(Icons.Filled.ArrowUpward, null) },
                         )
@@ -377,9 +403,7 @@ fun EditorScreen(
                             text = { Text(s.editorMoveLineDown) },
                             onClick = {
                                 moreOpen = false
-                                snackbarScope.launch {
-                                    snackbarHostState.showSnackbar("${s.editorMoveLineDown} (coming in next build)")
-                                }
+                                moveLineDownToken++
                             },
                             leadingIcon = { Icon(Icons.Filled.ArrowDownward, null) },
                         )
@@ -387,9 +411,7 @@ fun EditorScreen(
                             text = { Text(s.editorDuplicateLine) },
                             onClick = {
                                 moreOpen = false
-                                snackbarScope.launch {
-                                    snackbarHostState.showSnackbar("${s.editorDuplicateLine} (coming in next build)")
-                                }
+                                duplicateLineToken++
                             },
                             leadingIcon = { Icon(Icons.Filled.ContentCopy, null) },
                         )
@@ -397,11 +419,289 @@ fun EditorScreen(
                             text = { Text(s.editorDeleteLine) },
                             onClick = {
                                 moreOpen = false
-                                snackbarScope.launch {
-                                    snackbarHostState.showSnackbar("${s.editorDeleteLine} (coming in next build)")
-                                }
+                                deleteLineToken++
                             },
                             leadingIcon = { Icon(Icons.Filled.Delete, null) },
+                        )
+                        // v0.0.9 — bookmarks.
+                        HorizontalDivider()
+                        DropdownMenuItem(
+                            text = { Text(s.editorBookmarkToggle) },
+                            onClick = {
+                                moreOpen = false
+                                bookmarkToggleToken++
+                            },
+                            leadingIcon = { Icon(Icons.Filled.Bookmark, null) },
+                        )
+                        DropdownMenuItem(
+                            text = { Text(s.editorBookmarkNext) },
+                            onClick = {
+                                moreOpen = false
+                                gotoNextBookmarkToken++
+                            },
+                            leadingIcon = { Icon(Icons.Filled.BookmarkBorder, null) },
+                        )
+                        DropdownMenuItem(
+                            text = { Text(s.editorBookmarkPrev) },
+                            onClick = {
+                                moreOpen = false
+                                gotoPrevBookmarkToken++
+                            },
+                            leadingIcon = { Icon(Icons.Filled.BookmarkRemove, null) },
+                        )
+                        // v0.0.9 — text transformations submenu.
+                        HorizontalDivider()
+                        DropdownMenuItem(
+                            text = { Text(s.editorTransformUpper) },
+                            onClick = {
+                                moreOpen = false
+                                transformOp = TextTransformOp.UPPERCASE
+                                transformToken++
+                            },
+                            leadingIcon = { Icon(Icons.Filled.ArrowUpward, null) },
+                        )
+                        DropdownMenuItem(
+                            text = { Text(s.editorTransformLower) },
+                            onClick = {
+                                moreOpen = false
+                                transformOp = TextTransformOp.LOWERCASE
+                                transformToken++
+                            },
+                            leadingIcon = { Icon(Icons.Filled.ArrowDownward, null) },
+                        )
+                        DropdownMenuItem(
+                            text = { Text(s.editorTransformTitle) },
+                            onClick = {
+                                moreOpen = false
+                                transformOp = TextTransformOp.TITLE_CASE
+                                transformToken++
+                            },
+                            leadingIcon = { Icon(Icons.Filled.TextFields, null) },
+                        )
+                        DropdownMenuItem(
+                            text = { Text(s.editorSortLinesAsc) },
+                            onClick = {
+                                moreOpen = false
+                                transformOp = TextTransformOp.SORT_LINES_ASC
+                                transformToken++
+                            },
+                            leadingIcon = { Icon(Icons.Filled.Sort, null) },
+                        )
+                        DropdownMenuItem(
+                            text = { Text(s.editorSortLinesDesc) },
+                            onClick = {
+                                moreOpen = false
+                                transformOp = TextTransformOp.SORT_LINES_DESC
+                                transformToken++
+                            },
+                            leadingIcon = { Icon(Icons.Filled.Sort, null) },
+                        )
+                        DropdownMenuItem(
+                            text = { Text(s.editorDedupeLines) },
+                            onClick = {
+                                moreOpen = false
+                                transformOp = TextTransformOp.DEDUPE_LINES
+                                transformToken++
+                            },
+                            leadingIcon = { Icon(Icons.Filled.ContentCopy, null) },
+                        )
+                        DropdownMenuItem(
+                            text = { Text(s.editorTrimWhitespace) },
+                            onClick = {
+                                moreOpen = false
+                                transformOp = TextTransformOp.TRIM_TRAILING_WS
+                                transformToken++
+                            },
+                            leadingIcon = { Icon(Icons.Filled.SpaceBar, null) },
+                        )
+                        DropdownMenuItem(
+                            text = { Text(s.editorEncodeBase64) },
+                            onClick = {
+                                moreOpen = false
+                                transformOp = TextTransformOp.ENCODE_BASE64
+                                transformToken++
+                            },
+                            leadingIcon = { Icon(Icons.Filled.Code, null) },
+                        )
+                        DropdownMenuItem(
+                            text = { Text(s.editorDecodeBase64) },
+                            onClick = {
+                                moreOpen = false
+                                transformOp = TextTransformOp.DECODE_BASE64
+                                transformToken++
+                            },
+                            leadingIcon = { Icon(Icons.Filled.Code, null) },
+                        )
+                        DropdownMenuItem(
+                            text = { Text(s.editorEncodeUrl) },
+                            onClick = {
+                                moreOpen = false
+                                transformOp = TextTransformOp.ENCODE_URL
+                                transformToken++
+                            },
+                            leadingIcon = { Icon(Icons.Filled.Link, null) },
+                        )
+                        DropdownMenuItem(
+                            text = { Text(s.editorDecodeUrl) },
+                            onClick = {
+                                moreOpen = false
+                                transformOp = TextTransformOp.DECODE_URL
+                                transformToken++
+                            },
+                            leadingIcon = { Icon(Icons.Filled.Link, null) },
+                        )
+                        DropdownMenuItem(
+                            text = { Text(s.editorEncodeHtml) },
+                            onClick = {
+                                moreOpen = false
+                                transformOp = TextTransformOp.ENCODE_HTML
+                                transformToken++
+                            },
+                            leadingIcon = { Icon(Icons.Filled.Code, null) },
+                        )
+                        DropdownMenuItem(
+                            text = { Text(s.editorDecodeHtml) },
+                            onClick = {
+                                moreOpen = false
+                                transformOp = TextTransformOp.DECODE_HTML
+                                transformToken++
+                            },
+                            leadingIcon = { Icon(Icons.Filled.Code, null) },
+                        )
+                        DropdownMenuItem(
+                            text = { Text(s.editorToUnixEol) },
+                            onClick = {
+                                moreOpen = false
+                                transformOp = TextTransformOp.CONVERT_TO_UNIX_EOL
+                                transformToken++
+                            },
+                            leadingIcon = { Icon(Icons.Filled.LinearScale, null) },
+                        )
+                        DropdownMenuItem(
+                            text = { Text(s.editorToWindowsEol) },
+                            onClick = {
+                                moreOpen = false
+                                transformOp = TextTransformOp.CONVERT_TO_WIN_EOL
+                                transformToken++
+                            },
+                            leadingIcon = { Icon(Icons.Filled.LinearScale, null) },
+                        )
+                        DropdownMenuItem(
+                            text = { Text(s.editorIndent) },
+                            onClick = {
+                                moreOpen = false
+                                transformOp = TextTransformOp.INDENT
+                                transformToken++
+                            },
+                            leadingIcon = { Icon(Icons.Filled.FormatIndentIncrease, null) },
+                        )
+                        DropdownMenuItem(
+                            text = { Text(s.editorDedent) },
+                            onClick = {
+                                moreOpen = false
+                                transformOp = TextTransformOp.DEDENT
+                                transformToken++
+                            },
+                            leadingIcon = { Icon(Icons.Filled.FormatIndentDecrease, null) },
+                        )
+                        DropdownMenuItem(
+                            text = { Text(s.editorTabsToSpaces) },
+                            onClick = {
+                                moreOpen = false
+                                transformOp = TextTransformOp.TABS_TO_SPACES
+                                transformToken++
+                            },
+                            leadingIcon = { Icon(Icons.Filled.Tab, null) },
+                        )
+                        DropdownMenuItem(
+                            text = { Text(s.editorSpacesToTabs) },
+                            onClick = {
+                                moreOpen = false
+                                transformOp = TextTransformOp.SPACES_TO_TABS
+                                transformToken++
+                            },
+                            leadingIcon = { Icon(Icons.Filled.Tab, null) },
+                        )
+                        DropdownMenuItem(
+                            text = { Text(s.editorNumberLines) },
+                            onClick = {
+                                moreOpen = false
+                                transformOp = TextTransformOp.NUMBER_LINES
+                                transformToken++
+                            },
+                            leadingIcon = { Icon(Icons.Filled.FormatListNumbered, null) },
+                        )
+                        DropdownMenuItem(
+                            text = { Text(s.editorRemoveEmptyLines) },
+                            onClick = {
+                                moreOpen = false
+                                transformOp = TextTransformOp.REMOVE_EMPTY_LINES
+                                transformToken++
+                            },
+                            leadingIcon = { Icon(Icons.Filled.DeleteOutline, null) },
+                        )
+                        DropdownMenuItem(
+                            text = { Text(s.editorReverseLines) },
+                            onClick = {
+                                moreOpen = false
+                                transformOp = TextTransformOp.REVERSE_LINES
+                                transformToken++
+                            },
+                            leadingIcon = { Icon(Icons.Filled.SwapVert, null) },
+                        )
+                        DropdownMenuItem(
+                            text = { Text(s.editorToCamelCase) },
+                            onClick = {
+                                moreOpen = false
+                                transformOp = TextTransformOp.CAMEL_CASE
+                                transformToken++
+                            },
+                            leadingIcon = { Icon(Icons.Filled.TextFields, null) },
+                        )
+                        DropdownMenuItem(
+                            text = { Text(s.editorToSnakeCase) },
+                            onClick = {
+                                moreOpen = false
+                                transformOp = TextTransformOp.SNAKE_CASE
+                                transformToken++
+                            },
+                            leadingIcon = { Icon(Icons.Filled.TextFields, null) },
+                        )
+                        DropdownMenuItem(
+                            text = { Text(s.editorToKebabCase) },
+                            onClick = {
+                                moreOpen = false
+                                transformOp = TextTransformOp.KEBAB_CASE
+                                transformToken++
+                            },
+                            leadingIcon = { Icon(Icons.Filled.TextFields, null) },
+                        )
+                        DropdownMenuItem(
+                            text = { Text(s.editorToConstantCase) },
+                            onClick = {
+                                moreOpen = false
+                                transformOp = TextTransformOp.CONSTANT_CASE
+                                transformToken++
+                            },
+                            leadingIcon = { Icon(Icons.Filled.TextFields, null) },
+                        )
+                        DropdownMenuItem(
+                            text = { Text(s.editorSlugify) },
+                            onClick = {
+                                moreOpen = false
+                                transformOp = TextTransformOp.SLUGIFY
+                                transformToken++
+                            },
+                            leadingIcon = { Icon(Icons.Filled.Link, null) },
+                        )
+                        DropdownMenuItem(
+                            text = { Text(s.editorRot13) },
+                            onClick = {
+                                moreOpen = false
+                                transformOp = TextTransformOp.ROT13
+                                transformToken++
+                            },
+                            leadingIcon = { Icon(Icons.Filled.Lock, null) },
                         )
                         HorizontalDivider()
                         DropdownMenuItem(
@@ -553,6 +853,19 @@ fun EditorScreen(
                         jumpToken = jumpToken,
                         jumpLine = pendingGoToLine ?: activeTab!!.cursorLine,
                         commentToggleToken = commentToggleToken,
+                        enableCompletion = autocompleteEnabled,
+                        // v0.0.9 — wire line ops + transforms + bookmarks.
+                        moveLineUpToken = moveLineUpToken,
+                        moveLineDownToken = moveLineDownToken,
+                        duplicateLineToken = duplicateLineToken,
+                        deleteLineToken = deleteLineToken,
+                        transformToken = transformToken,
+                        transformOp = transformOp,
+                        bookmarkToggleToken = bookmarkToggleToken,
+                        gotoNextBookmarkToken = gotoNextBookmarkToken,
+                        gotoPrevBookmarkToken = gotoPrevBookmarkToken,
+                        bookmarks = bookmarks,
+                        onBookmarksChange = { bookmarks = it },
                         modifier = Modifier.fillMaxSize(),
                     )
                 }

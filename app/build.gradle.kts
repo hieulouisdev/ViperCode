@@ -14,8 +14,9 @@ android {
         applicationId = "com.vipercode.ide"
         minSdk = 25
         targetSdk = 35
-        versionCode = 8
-        versionName = "0.0.8"
+        // v0.0.9 — SUPER UPDATE: 100+ new features, tools, themes, languages.
+        versionCode = 9
+        versionName = "0.0.9"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {

@@ -1,0 +1,88 @@
+name: Security Scan
+
+# v0.0.9 — new workflow. Runs `dependency-submission` so GitHub's
+# Dependency Graph is up-to-date, then runs `github/codeql-action`
+# on Kotlin/Java sources. Both are advisory (continue-on-error for
+# now) so a transient tooling failure doesn't block the release.
+#
+# Why separate from CI?
+#  - The Dependency Graph submission requires `contents: write` —
+#    we don't want that scope on the main CI job.
+#  - CodeQL adds ~5 min to a run; not worth blocking every push.
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  schedule:
+    - cron: '17 6 * * 1'  # weekly on Mondays at 06:17 UTC
+  workflow_dispatch:
+
+concurrency:
+  group: security-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  dependency-graph:
+    name: Submit dependency graph
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: 'platforms;android-35 build-tools;35.0.0 platform-tools'
+
+      - name: Submit Gradle dependencies to GitHub
+        uses: gradle/actions/dependency-submission@v4
+        with:
+          # Only submit the app module's runtime classpath to keep the
+          # graph focused (test deps are not shipped to end users).
+          dependency-graph: submit
+          build-root-directory: .
+          configuration: releaseRuntimeClasspath
+        continue-on-error: true
+
+  codeql:
+    name: CodeQL (Kotlin/Java)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      security-events: write
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: kotlin, java
+          # Default queries + the security-extended suite.
+          queries: security-extended, security-and-quality
+
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@v3
+        continue-on-error: true
+
+      - name: Perform CodeQL analysis
+        uses: github/codeql-action/analyze@v3
+        continue-on-error: true

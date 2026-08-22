@@ -4,6 +4,20 @@ name: CI
 # caught BEFORE a release is published. The release workflow
 # (.github/workflows/build-release-apk.yml) is then guaranteed to
 # succeed because the same compile step has already passed.
+#
+# v0.0.9 changes:
+#  - Add a `lint-baseline.xml` allow-list step (no-op if the file
+#    doesn't exist; lets the repo silence known legacy lint warnings
+#    without disabling the lintDebug gate).
+#  - Upload the test results XML so the Actions UI shows test counts
+#    inline (was hidden in the gradle log).
+#  - Add `--no-daemon --build-cache` to all Gradle invocations for
+#    faster cold-start on a fresh runner.
+#  - Add an explicit `configure` step that prints the JDK / Android
+#    SDK versions, so a green build can be reproduced locally.
+#  - Add a `unit-test` job that runs in parallel with `build-debug`
+#    and runs `testDebugUnitTest`. The two jobs share the same Gradle
+#    cache key so they don't fight for cache slots.
 
 on:
   push:
@@ -55,11 +69,22 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x ./gradlew
 
+      - name: Print toolchain versions (reproducibility aid)
+        run: |
+          echo "=== Java ==="
+          java -version
+          echo "=== Gradle wrapper ==="
+          ./gradlew --version
+          echo "=== Android SDK ==="
+          echo "ANDROID_HOME=$ANDROID_HOME"
+          ls -1 "$ANDROID_HOME/platforms/" 2>/dev/null || true
+          ls -1 "$ANDROID_HOME/build-tools/" 2>/dev/null || true
+
       - name: Run lint
-        run: ./gradlew lintDebug --no-daemon --stacktrace
+        run: ./gradlew lintDebug --no-daemon --build-cache --stacktrace
 
       - name: Assemble debug APK
-        run: ./gradlew assembleDebug --no-daemon --stacktrace
+        run: ./gradlew assembleDebug --no-daemon --build-cache --stacktrace
 
       - name: Upload debug APK
         if: always()

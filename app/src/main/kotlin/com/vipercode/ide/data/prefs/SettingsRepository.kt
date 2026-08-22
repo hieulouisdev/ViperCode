@@ -92,6 +92,40 @@ object SettingsRepository {
     // them.
     val lineOpsInOverflow = Pref(Boolean::class.javaObjectType, "line_ops_in_overflow", true)
 
+    // v0.0.9 — SUPER UPDATE: lots of new editor visual toggles.
+    val showWhitespace = Pref(Boolean::class.javaObjectType, "show_whitespace", false)
+    val showIndentGuides = Pref(Boolean::class.javaObjectType, "show_indent_guides", true)
+    val showBracketMatch = Pref(Boolean::class.javaObjectType, "show_bracket_match", true)
+    val showMinimap = Pref(Boolean::class.javaObjectType, "show_minimap", false)
+    val highlightCurrentLine = Pref(Boolean::class.javaObjectType, "highlight_current_line", true)
+    val stickyHeaderEnabled = Pref(Boolean::class.javaObjectType, "sticky_header", false)
+    val trimTrailingWsOnSave = Pref(Boolean::class.javaObjectType, "trim_trailing_ws_on_save", false)
+    val insertFinalNewline = Pref(Boolean::class.javaObjectType, "insert_final_newline", false)
+    val pinTabsEnabled = Pref(Boolean::class.javaObjectType, "pin_tabs_enabled", true)
+    val colorizeBrackets = Pref(Boolean::class.javaObjectType, "colorize_brackets", false)
+    val rainbowIndent = Pref(Boolean::class.javaObjectType, "rainbow_indent", false)
+    val showTodoPanel = Pref(Boolean::class.javaObjectType, "show_todo_panel", false)
+    val autoSaveOnExit = Pref(Boolean::class.javaObjectType, "auto_save_on_exit", true)
+    val rememberCaretAcrossSessions = Pref(Boolean::class.javaObjectType, "remember_caret", true)
+    val confirmOnClose = Pref(Boolean::class.javaObjectType, "confirm_on_close", true)
+    val useSystemBackGesture = Pref(Boolean::class.javaObjectType, "use_system_back_gesture", true)
+    val compactMode = Pref(Boolean::class.javaObjectType, "compact_mode", false)
+    val tabletOptimized = Pref(Boolean::class.javaObjectType, "tablet_optimized", true)
+    val largerTouchTargets = Pref(Boolean::class.javaObjectType, "larger_touch_targets", false)
+    val preferDarkModeInPreview = Pref(Boolean::class.javaObjectType, "prefer_dark_mode_in_preview", false)
+    val hapticFeedback = Pref(Boolean::class.javaObjectType, "haptic_feedback", true)
+    val soundFeedback = Pref(Boolean::class.javaObjectType, "sound_feedback", false)
+    val showFileSizesInExplorer = Pref(Boolean::class.javaObjectType, "show_file_sizes", true)
+    val showFileDatesInExplorer = Pref(Boolean::class.javaObjectType, "show_file_dates", true)
+    val expandFoldersOnLoad = Pref(Boolean::class.javaObjectType, "expand_folders_on_load", false)
+    val defaultEncoding = Pref(String::class.java, "default_encoding", "UTF-8")
+    val defaultEol = Pref(String::class.java, "default_eol", "LF")
+    val maxFileSize = Pref(Int::class.javaObjectType, "max_file_size_mb", 5)
+    val recentFileLimit = Pref(Int::class.javaObjectType, "recent_file_limit", 25)
+    val autoRefreshPreview = Pref(Boolean::class.javaObjectType, "auto_refresh_preview", true)
+    val previewPort = Pref(Int::class.javaObjectType, "preview_port", 8080)
+    val preferredTheme = Pref(String::class.java, "preferred_theme", "viper_default")
+
     fun init(context: Context) {
         ctx = context.applicationContext
     }

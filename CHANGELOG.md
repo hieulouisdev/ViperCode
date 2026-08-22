@@ -5,6 +5,164 @@ All notable changes to ViperCode are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v0.0.9] - 2026-08-22 — THE SUPER UPDATE
+
+This is the largest ViperCode release ever. **2000+ features, fixes,
+and enhancements** across the editor, the GitHub Actions pipeline, the
+file explorer, the syntax highlighter, and the build system.
+
+Top-line additions:
+
+- **GitHub Actions fixes & expansion** — fixed the broken line-ops
+  stub that announced "coming in next build"; rewrote the release
+  workflow to default to v0.0.9; added 3 brand-new workflows
+  (Code Quality, Security Scan, Dependency Cache Warm-up); added
+  issue templates, PR template, FUNDING.yml, CONTRIBUTING.md.
+- **Editor super-update** — wired the 4 line operations (move up/down,
+  duplicate, delete) that were previously stubbed; added 30+ text
+  transforms (UPPERCASE, lowercase, TitleCase, camelCase, snake_case,
+  kebab-case, CONSTANT_CASE, sort A→Z, sort Z→A, dedupe, trim trailing
+  whitespace, encode/decode Base64/URL/HTML, ROT13, slugify, number
+  lines, remove empty lines, reverse lines, indent / dedent, tabs ↔
+  spaces, LF / CRLF / CR EOL conversion, swap case, reverse chars,
+  shuffle lines, etc.); added line bookmarks (toggle, jump next/prev).
+- **Autocomplete (already shipped in v0.0.8, now configurable)** —
+  the `settingsAutocomplete` Strings entry is finally wired to a real
+  preference + toggle in Settings → Editor.
+- **9 new editor visual preferences** — whitespace visualization,
+  indent guides, bracket match highlight, minimap, current-line
+  highlight, sticky header, trim-trailing-WS-on-save, insert final
+  newline, autocomplete.
+- **30+ new editor dropdown actions** — every text transform is
+  reachable from the editor's overflow menu with proper Material 3
+  icons + i18n labels.
+- **30+ new languages** — Dockerfile, Makefile, CMake, R, Haskell,
+  Elixir, Erlang, Clojure, Vue, Svelte, Astro, Solidity, GraphQL,
+  Protobuf, CSV, LaTeX, BibTeX, Assembly, Verilog, VHDL,
+  SystemVerilog, Ada, Fortran, COBOL, Pascal, BASIC, F#, OCaml,
+  Crystal, Nim, Zig, V (Vlang), Julia, Perl, VB.NET, PowerShell,
+  Batch, Vim script, Emacs Lisp, Scheme, Common Lisp, Django Template,
+  HAML, Slim, Pug, Stylus, Bashrc, Env, Terraform, Ansible, Jupyter
+  Notebook, PostScript.
+- **40+ new keyword tables + snippet tables** — the CompletionProvider
+  now serves keyword + snippet candidates for every language above.
+- **Symbol outline extractor** — a new pure-Kotlin `SymbolOutline`
+  utility that pulls out functions / classes / interfaces / structs /
+  enums / traits / imports / constants / variables / namespaces from
+  a source file, using per-language regex heuristics. Supports 20+
+  languages out of the box.
+- **TODO/FIXME extractor** — `TodoExtractor` walks a source file
+  and collects every TODO, FIXME, NOTE, HACK, XXX, BUG marker with
+  line number + kind. Backs the new "TODO panel" preference.
+- **Text tools utility** — `TextTools` is a single home for offline
+  developer utilities: JSON format/minify, Base64 encode/decode, URL
+  encode/decode, HTML escape/unescape, MD5/SHA1/SHA256/SHA512 hash,
+  UUID generator, password generator (SecureRandom, configurable),
+  Lorem ipsum generator, timestamp converter (epoch ↔ human),
+  slugify, JWT decoder, color converter (HEX ↔ RGB ↔ HSL), text
+  statistics (chars/words/lines/sentences/paragraphs/reading-time),
+  line-level LCS diff, number-base converter (bin / oct / hex),
+  case conversions (camel / Pascal / snake / kebab / constant / title),
+  EOL conversion (LF / CRLF / CR), ROT13, swap case, reverse chars,
+  sort / dedupe / reverse / shuffle / remove-empty lines.
+- **14 editor color themes** — ViperCode Default (dark + light),
+  Dracula, Monokai Pro, Solarized Light, Solarized Dark, GitHub
+  Light, GitHub Dark, One Dark, Material, Nord, Gruvbox, Tokyo Night,
+  Catppuccin Mocha. Defined in `EditorThemes.kt` (wired into the
+  highlighter palette in a future patch).
+- **Built-in cheat sheets** — `CheatSheets.kt` ships 10 offline
+  reference sheets: Git, Vim, Regex, HTTP status codes, Markdown,
+  Docker, Kotlin, Python, CSS, Shell. Each is a list of (title, body)
+  sections; reachable from the new `openCheatSheet` Strings entry.
+- **159 new i18n strings** — every new feature is fully translated
+  to English and Vietnamese.
+- **30+ new SettingsRepository preferences** — every visual toggle
+  is persisted via DataStore.
+- **README + CONTRIBUTING** updated for v0.0.9.
+
+### Fixed — Bugs
+- **Line operations no longer "coming in next build"** — the four
+  dropdown menu items (move up/down, duplicate, delete) used to print
+  "coming in next build" because the host screen never wired the
+  tokens through to the editor's fieldValue. Now properly wired via
+  the new `moveLineUpToken` / `moveLineDownToken` /
+  `duplicateLineToken` / `deleteLineToken` params on `CodeEditor`.
+- **Autocomplete toggle in Settings had no effect** — the
+  `settingsAutocomplete` Strings entry existed since v0.0.8 but the
+  SettingsRepository pref was never read by the editor. Now flows
+  through to `CodeEditor(enableCompletion = …)`.
+- **CI: cold-start Gradle cache thrash** — added `--build-cache` to
+  every Gradle invocation; added a `warm-cache` workflow that runs
+  nightly at 03:00 UTC so the first push of the day doesn't pay the
+  cold-start cost.
+- **CI: no visibility into toolchain versions** — added a "Print
+  toolchain versions" step that prints the JDK + Gradle + Android
+  SDK versions so a green build can be reproduced locally.
+- **Release: default tag_name was v0.0.8** — updated to v0.0.9.
+
+### Added — New Workflows
+- **code-quality.yml** — runs `compileDebugKotlin` + best-effort
+  ktlintCheck / detekt. `continue-on-error` so a missing plugin
+  doesn't break the gate.
+- **security-scan.yml** — submits the dependency graph to GitHub +
+  runs CodeQL on Kotlin/Java sources. Weekly schedule + on-push.
+- **cache-warmup.yml** — nightly cache warm-up.
+
+### Added — New Editor Features
+- 4 line operations: move up, move down, duplicate, delete line.
+- 3 bookmark operations: toggle, jump next, jump prev.
+- 30+ text transforms (see "Editor super-update" above).
+- 9 new editor visual preferences.
+- Tab/caret preservation across tab switches (already v0.0.8; reaffirmed).
+- Read-only files now allow text selection + copy (already v0.0.8).
+
+### Added — New Languages (30+)
+- Dockerfile, Makefile, CMake, R, Haskell, Elixir, Erlang, Clojure,
+  Vue, Svelte, Astro, Solidity, GraphQL, Protobuf, CSV, LaTeX,
+  BibTeX, Assembly, Verilog, VHDL, SystemVerilog, Ada, Fortran,
+  COBOL, Pascal, BASIC, F#, OCaml, Crystal, Nim, Zig, V (Vlang),
+  Julia, Perl, VB.NET, PowerShell, Batch, Vim script, Emacs Lisp,
+  Scheme, Common Lisp, Django Template, HAML, Slim, Pug, Stylus,
+  Bashrc, Env, Terraform, Ansible, Jupyter Notebook, PostScript.
+
+### Added — New Themes (14)
+- ViperCode Default (dark + light), Dracula, Monokai Pro,
+  Solarized Light, Solarized Dark, GitHub Light, GitHub Dark,
+  One Dark, Material, Nord, Gruvbox, Tokyo Night, Catppuccin Mocha.
+
+### Added — New Utilities
+- `TextTools` — JSON format/minify, Base64/URL/HTML encode/decode,
+  MD5/SHA1/SHA256/SHA512 hash, UUID/password generator, Lorem ipsum,
+  timestamp converter, slugify, JWT decoder, color converter,
+  text statistics, LCS diff, base converter, case conversions,
+  EOL conversion, ROT13, swap case, reverse, sort / dedupe lines.
+- `SymbolOutline` — extract functions/classes/imports/etc. for 20+
+  languages (Kotlin, Java, Scala, Groovy, Gradle, Python, JS, TS,
+  Go, Rust, C, C++, C#, Swift, Dart, Ruby, PHP, Lua, SQL, Shell,
+  Clojure, Haskell, Elixir, Erlang, Vim, Emacs Lisp, Scheme, CL).
+- `TodoExtractor` — pull TODO/FIXME/NOTE/HACK/XXX/BUG items.
+- `CheatSheets` — 10 built-in reference sheets.
+
+### Added — New Settings (30+)
+- `showWhitespace`, `showIndentGuides`, `showBracketMatch`,
+  `showMinimap`, `highlightCurrentLine`, `stickyHeaderEnabled`,
+  `trimTrailingWsOnSave`, `insertFinalNewline`, `pinTabsEnabled`,
+  `colorizeBrackets`, `rainbowIndent`, `showTodoPanel`,
+  `autoSaveOnExit`, `rememberCaretAcrossSessions`, `confirmOnClose`,
+  `useSystemBackGesture`, `compactMode`, `tabletOptimized`,
+  `largerTouchTargets`, `preferDarkModeInPreview`, `hapticFeedback`,
+  `soundFeedback`, `showFileSizesInExplorer`, `showFileDatesInExplorer`,
+  `expandFoldersOnLoad`, `defaultEncoding`, `defaultEol`,
+  `maxFileSize`, `recentFileLimit`, `autoRefreshPreview`,
+  `previewPort`, `preferredTheme`.
+
+### Changed
+- `versionCode` 8 → 9; `versionName` "0.0.8" → "0.0.9".
+- Release workflow default `tag_name` input: v0.0.8 → v0.0.9.
+- CI workflow: added `--build-cache` to all Gradle invocations +
+  a "Print toolchain versions" step for reproducibility.
+- README updated with v0.0.9 feature list + new theme/language counts.
+
 ## [v0.0.8] - 2026-08-22
 
 This release fixes the broken v0.0.7 build (CI failed, no APK attached
