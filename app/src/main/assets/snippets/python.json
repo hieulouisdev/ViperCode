@@ -1,0 +1,216 @@
+{
+  "language": "python",
+  "format": "vscode-snippets-v1",
+  "snippets": [
+    {
+      "prefix": "def",
+      "body": [
+        "def ${1:name}(${2:args}):",
+        "    ${3:\"\"\"docstring\"\"\"}",
+        "    ${4:pass}"
+      ],
+      "description": "Function definition."
+    },
+    {
+      "prefix": "class",
+      "body": [
+        "class ${1:Name}:",
+        "    def __init__(self, ${2:args}):",
+        "        ${3:pass}"
+      ],
+      "description": "Class definition."
+    },
+    {
+      "prefix": "dataclass",
+      "body": [
+        "@dataclass",
+        "class ${1:Name}:",
+        "    ${2:field}: ${3:str}"
+      ],
+      "description": "Dataclass."
+    },
+    {
+      "prefix": "if",
+      "body": [
+        "if ${1:condition}:",
+        "    ${2:pass}"
+      ],
+      "description": "If statement."
+    },
+    {
+      "prefix": "if-else",
+      "body": [
+        "if ${1:condition}:",
+        "    ${2:pass}",
+        "else:",
+        "    ${3:pass}"
+      ],
+      "description": "If-else statement."
+    },
+    {
+      "prefix": "for",
+      "body": [
+        "for ${1:item} in ${2:iterable}:",
+        "    ${3:pass}"
+      ],
+      "description": "For loop."
+    },
+    {
+      "prefix": "while",
+      "body": [
+        "while ${1:condition}:",
+        "    ${2:pass}"
+      ],
+      "description": "While loop."
+    },
+    {
+      "prefix": "try",
+      "body": [
+        "try:",
+        "    ${1:pass}",
+        "except ${2:Exception} as e:",
+        "    ${3:pass}"
+      ],
+      "description": "Try-except."
+    },
+    {
+      "prefix": "with",
+      "body": [
+        "with open(${1:\"path\"}) as ${2:f}:",
+        "    ${3:pass}"
+      ],
+      "description": "Context manager."
+    },
+    {
+      "prefix": "print",
+      "body": [
+        "print(${1:\"text\"})"
+      ],
+      "description": "Print a line."
+    },
+    {
+      "prefix": "fstring",
+      "body": [
+        "f\"${1:variable}\""
+      ],
+      "description": "Formatted string."
+    },
+    {
+      "prefix": "list-comp",
+      "body": [
+        "[${1:expr} for ${2:x} in ${3:iterable}]"
+      ],
+      "description": "List comprehension."
+    },
+    {
+      "prefix": "dict-comp",
+      "body": [
+        "{${1:k}: ${2:v} for ${3:x} in ${4:iterable}}"
+      ],
+      "description": "Dict comprehension."
+    },
+    {
+      "prefix": "set-comp",
+      "body": [
+        "{${1:expr} for ${2:x} in ${3:iterable}}"
+      ],
+      "description": "Set comprehension."
+    },
+    {
+      "prefix": "lambda",
+      "body": [
+        "${1:f} = lambda ${2:args}: ${3:expr}"
+      ],
+      "description": "Lambda."
+    },
+    {
+      "prefix": "async-def",
+      "body": [
+        "async def ${1:name}(${2:args}):",
+        "    ${3:await something()}"
+      ],
+      "description": "Async function."
+    },
+    {
+      "prefix": "async-for",
+      "body": [
+        "async for ${1:item} in ${2:aiterable}:",
+        "    ${3:pass}"
+      ],
+      "description": "Async for loop."
+    },
+    {
+      "prefix": "async-with",
+      "body": [
+        "async with ${1:resource} as ${2:r}:",
+        "    ${3:pass}"
+      ],
+      "description": "Async context manager."
+    },
+    {
+      "prefix": "import",
+      "body": [
+        "import ${1:module}"
+      ],
+      "description": "Import statement."
+    },
+    {
+      "prefix": "from-import",
+      "body": [
+        "from ${1:module} import ${2:name}"
+      ],
+      "description": "From import."
+    },
+    {
+      "prefix": "property",
+      "body": [
+        "@property",
+        "def ${1:name}(self):",
+        "    ${2:return self._field}"
+      ],
+      "description": "Property decorator."
+    },
+    {
+      "prefix": "staticmethod",
+      "body": [
+        "@staticmethod",
+        "def ${1:name}(${2:args}):",
+        "    ${3:pass}"
+      ],
+      "description": "Static method decorator."
+    },
+    {
+      "prefix": "classmethod",
+      "body": [
+        "@classmethod",
+        "def ${1:name}(cls, ${2:args}):",
+        "    ${3:pass}"
+      ],
+      "description": "Class method decorator."
+    },
+    {
+      "prefix": "match",
+      "body": [
+        "match ${1:subject}:",
+        "    case ${2:pattern}:",
+        "        ${3:pass}"
+      ],
+      "description": "Match statement (3.10+)."
+    },
+    {
+      "prefix": "typing",
+      "body": [
+        "def ${1:name}(${2:arg}: ${3:int}) -> ${4:str}:",
+        "    ${5:pass}"
+      ],
+      "description": "Function with type annotations."
+    },
+    {
+      "prefix": "typevar",
+      "body": [
+        "T = TypeVar(\"T\")"
+      ],
+      "description": "TypeVar declaration."
+    }
+  ]
+}

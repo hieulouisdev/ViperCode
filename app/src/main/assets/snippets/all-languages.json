@@ -1,0 +1,2267 @@
+{
+  "format": "vscode-snippets-v1-combined",
+  "languages": [
+    "kotlin",
+    "java",
+    "python",
+    "javascript",
+    "typescript",
+    "rust",
+    "go",
+    "csharp",
+    "cpp",
+    "swift",
+    "php",
+    "ruby"
+  ],
+  "snippets": {
+    "kotlin": [
+      {
+        "prefix": "main",
+        "body": [
+          "fun main() {",
+          "    println(\"Hello, World!\")",
+          "}"
+        ],
+        "description": "Kotlin main entry point."
+      },
+      {
+        "prefix": "function",
+        "body": [
+          "fun ${1:name}(${2:args}): ${3:Unit} {",
+          "    ${4:/* body */}",
+          "}"
+        ],
+        "description": "Top-level function."
+      },
+      {
+        "prefix": "class",
+        "body": [
+          "class ${1:Name}(${2:args}) {",
+          "    ${3:/* body */}",
+          "}"
+        ],
+        "description": "Primary constructor class."
+      },
+      {
+        "prefix": "data class",
+        "body": [
+          "data class ${1:Name}(",
+          "    val ${2:field}: ${3:String},",
+          ")"
+        ],
+        "description": "Data class with one field."
+      },
+      {
+        "prefix": "if",
+        "body": [
+          "if (${1:condition}) {",
+          "    ${2:/* then */}",
+          "} else {",
+          "    ${3:/* else */}",
+          "}"
+        ],
+        "description": "If-else statement."
+      },
+      {
+        "prefix": "when",
+        "body": [
+          "when (${1:subject}) {",
+          "    ${2:value1} -> ${3:/* */}",
+          "    ${4:value2} -> ${5:/* */}",
+          "    else -> ${6:/* default */}",
+          "}"
+        ],
+        "description": "When expression (Kotlin's switch)."
+      },
+      {
+        "prefix": "for",
+        "body": [
+          "for (${1:item} in ${2:collection}) {",
+          "    ${3:/* body */}",
+          "}"
+        ],
+        "description": "For-each loop."
+      },
+      {
+        "prefix": "while",
+        "body": [
+          "while (${1:condition}) {",
+          "    ${2:/* body */}",
+          "}"
+        ],
+        "description": "While loop."
+      },
+      {
+        "prefix": "try",
+        "body": [
+          "try {",
+          "    ${1:/* body */}",
+          "} catch (e: ${2:Exception}) {",
+          "    ${3:/* handle */}",
+          "}"
+        ],
+        "description": "Try-catch."
+      },
+      {
+        "prefix": "print",
+        "body": [
+          "println(${1:\"text\"})"
+        ],
+        "description": "Print a line."
+      },
+      {
+        "prefix": "val",
+        "body": [
+          "val ${1:name}: ${2:String} = ${3:value}"
+        ],
+        "description": "Immutable variable declaration."
+      },
+      {
+        "prefix": "var",
+        "body": [
+          "var ${1:name}: ${2:String} = ${3:value}"
+        ],
+        "description": "Mutable variable declaration."
+      },
+      {
+        "prefix": "list",
+        "body": [
+          "val ${1:list}: List<${2:String}> = listOf(${3:\"a\", \"b\", \"c\"})"
+        ],
+        "description": "Immutable list."
+      },
+      {
+        "prefix": "map",
+        "body": [
+          "val ${1:map}: Map<String, ${2:Int}> = mapOf(",
+          "    ${3:\"one\" to 1, \"two\" to 2}",
+          ")"
+        ],
+        "description": "Immutable map."
+      },
+      {
+        "prefix": "set",
+        "body": [
+          "val ${1:set}: Set<${2:String}> = setOf(${3:\"a\", \"b\", \"c\"})"
+        ],
+        "description": "Immutable set."
+      },
+      {
+        "prefix": "when-bool",
+        "body": [
+          "when (${1:flag}) {",
+          "    true -> ${2:/* yes */}",
+          "    false -> ${3:/* no */}",
+          "}"
+        ],
+        "description": "When on a boolean."
+      },
+      {
+        "prefix": "interface",
+        "body": [
+          "interface ${1:Name} {",
+          "    fun ${2:method}(): ${3:Unit}",
+          "}"
+        ],
+        "description": "Interface declaration."
+      },
+      {
+        "prefix": "object",
+        "body": [
+          "object ${1:Name} {",
+          "    ${2:/* body */}",
+          "}"
+        ],
+        "description": "Singleton object."
+      },
+      {
+        "prefix": "companion",
+        "body": [
+          "companion object {",
+          "    const val ${1:NAME} = ${2:\"value\"}",
+          "}"
+        ],
+        "description": "Companion object with a constant."
+      },
+      {
+        "prefix": "lambda",
+        "body": [
+          "val ${1:f}: (${2:Int}) -> ${3:Int} = { ${4:x} -> ${5:x + 1} }"
+        ],
+        "description": "Lambda assigned to a val."
+      }
+    ],
+    "java": [
+      {
+        "prefix": "main",
+        "body": [
+          "public static void main(String[] args) {",
+          "    System.out.println(\"Hello, World!\");",
+          "}"
+        ],
+        "description": "Java main entry point."
+      },
+      {
+        "prefix": "sout",
+        "body": [
+          "System.out.println(${1:\"text\"});"
+        ],
+        "description": "Print a line."
+      },
+      {
+        "prefix": "soutv",
+        "body": [
+          "System.out.println(\"${1:var} = \" + ${1:var});"
+        ],
+        "description": "Print a variable."
+      },
+      {
+        "prefix": "class",
+        "body": [
+          "public class ${1:Name} {",
+          "    ${2:/* body */}",
+          "}"
+        ],
+        "description": "Public class."
+      },
+      {
+        "prefix": "interface",
+        "body": [
+          "public interface ${1:Name} {",
+          "    ${2:/* methods */}",
+          "}"
+        ],
+        "description": "Public interface."
+      },
+      {
+        "prefix": "method",
+        "body": [
+          "public ${1:void} ${2:name}(${3:String args}) {",
+          "    ${4:/* body */}",
+          "}"
+        ],
+        "description": "Public method."
+      },
+      {
+        "prefix": "if",
+        "body": [
+          "if (${1:condition}) {",
+          "    ${2:/* then */}",
+          "} else {",
+          "    ${3:/* else */}",
+          "}"
+        ],
+        "description": "If-else."
+      },
+      {
+        "prefix": "for",
+        "body": [
+          "for (${1:int i = 0}; i < ${2:n}; i++) {",
+          "    ${3:/* body */}",
+          "}"
+        ],
+        "description": "C-style for loop."
+      },
+      {
+        "prefix": "foreach",
+        "body": [
+          "for (${1:Type} ${2:item} : ${3:collection}) {",
+          "    ${4:/* body */}",
+          "}"
+        ],
+        "description": "For-each loop."
+      },
+      {
+        "prefix": "while",
+        "body": [
+          "while (${1:condition}) {",
+          "    ${2:/* body */}",
+          "}"
+        ],
+        "description": "While loop."
+      },
+      {
+        "prefix": "try",
+        "body": [
+          "try {",
+          "    ${1:/* body */}",
+          "} catch (${2:Exception} e) {",
+          "    ${3:/* handle */}",
+          "}"
+        ],
+        "description": "Try-catch."
+      },
+      {
+        "prefix": "try-finally",
+        "body": [
+          "try {",
+          "    ${1:/* body */}",
+          "} catch (${2:Exception} e) {",
+          "    ${3:/* handle */}",
+          "} finally {",
+          "    ${4:/* cleanup */}",
+          "}"
+        ],
+        "description": "Try-catch-finally."
+      },
+      {
+        "prefix": "string",
+        "body": [
+          "String ${1:name} = ${2:\"value\"};"
+        ],
+        "description": "String variable declaration."
+      },
+      {
+        "prefix": "list",
+        "body": [
+          "List<${1:String}> ${2:list} = new ArrayList<>();"
+        ],
+        "description": "Declare an ArrayList."
+      },
+      {
+        "prefix": "map",
+        "body": [
+          "Map<${1:String}, ${2:Integer}> ${3:map} = new HashMap<>();"
+        ],
+        "description": "Declare a HashMap."
+      },
+      {
+        "prefix": "set",
+        "body": [
+          "Set<${1:String}> ${2:set} = new HashSet<>();"
+        ],
+        "description": "Declare a HashSet."
+      },
+      {
+        "prefix": "lambda",
+        "body": [
+          "(${1:args}) -> ${2:body}"
+        ],
+        "description": "Lambda expression."
+      },
+      {
+        "prefix": "stream",
+        "body": [
+          "${1:collection}.stream().forEach(${2:item} -> {",
+          "    ${3:/* body */}",
+          "});"
+        ],
+        "description": "Stream forEach."
+      },
+      {
+        "prefix": "stream-map",
+        "body": [
+          "${1:collection}.stream().map(${2:item} -> ${3:item.transformed}).collect(Collectors.toList());"
+        ],
+        "description": "Stream map."
+      },
+      {
+        "prefix": "stream-filter",
+        "body": [
+          "${1:collection}.stream().filter(${2:item} -> ${3:item.test()}).collect(Collectors.toList());"
+        ],
+        "description": "Stream filter."
+      }
+    ],
+    "python": [
+      {
+        "prefix": "def",
+        "body": [
+          "def ${1:name}(${2:args}):",
+          "    ${3:\"\"\"docstring\"\"\"}",
+          "    ${4:pass}"
+        ],
+        "description": "Function definition."
+      },
+      {
+        "prefix": "class",
+        "body": [
+          "class ${1:Name}:",
+          "    def __init__(self, ${2:args}):",
+          "        ${3:pass}"
+        ],
+        "description": "Class definition."
+      },
+      {
+        "prefix": "dataclass",
+        "body": [
+          "@dataclass",
+          "class ${1:Name}:",
+          "    ${2:field}: ${3:str}"
+        ],
+        "description": "Dataclass."
+      },
+      {
+        "prefix": "if",
+        "body": [
+          "if ${1:condition}:",
+          "    ${2:pass}"
+        ],
+        "description": "If statement."
+      },
+      {
+        "prefix": "if-else",
+        "body": [
+          "if ${1:condition}:",
+          "    ${2:pass}",
+          "else:",
+          "    ${3:pass}"
+        ],
+        "description": "If-else statement."
+      },
+      {
+        "prefix": "for",
+        "body": [
+          "for ${1:item} in ${2:iterable}:",
+          "    ${3:pass}"
+        ],
+        "description": "For loop."
+      },
+      {
+        "prefix": "while",
+        "body": [
+          "while ${1:condition}:",
+          "    ${2:pass}"
+        ],
+        "description": "While loop."
+      },
+      {
+        "prefix": "try",
+        "body": [
+          "try:",
+          "    ${1:pass}",
+          "except ${2:Exception} as e:",
+          "    ${3:pass}"
+        ],
+        "description": "Try-except."
+      },
+      {
+        "prefix": "with",
+        "body": [
+          "with open(${1:\"path\"}) as ${2:f}:",
+          "    ${3:pass}"
+        ],
+        "description": "Context manager."
+      },
+      {
+        "prefix": "print",
+        "body": [
+          "print(${1:\"text\"})"
+        ],
+        "description": "Print a line."
+      },
+      {
+        "prefix": "fstring",
+        "body": [
+          "f\"${1:variable}\""
+        ],
+        "description": "Formatted string."
+      },
+      {
+        "prefix": "list-comp",
+        "body": [
+          "[${1:expr} for ${2:x} in ${3:iterable}]"
+        ],
+        "description": "List comprehension."
+      },
+      {
+        "prefix": "dict-comp",
+        "body": [
+          "{${1:k}: ${2:v} for ${3:x} in ${4:iterable}}"
+        ],
+        "description": "Dict comprehension."
+      },
+      {
+        "prefix": "set-comp",
+        "body": [
+          "{${1:expr} for ${2:x} in ${3:iterable}}"
+        ],
+        "description": "Set comprehension."
+      },
+      {
+        "prefix": "lambda",
+        "body": [
+          "${1:f} = lambda ${2:args}: ${3:expr}"
+        ],
+        "description": "Lambda."
+      },
+      {
+        "prefix": "async-def",
+        "body": [
+          "async def ${1:name}(${2:args}):",
+          "    ${3:await something()}"
+        ],
+        "description": "Async function."
+      },
+      {
+        "prefix": "async-for",
+        "body": [
+          "async for ${1:item} in ${2:aiterable}:",
+          "    ${3:pass}"
+        ],
+        "description": "Async for loop."
+      },
+      {
+        "prefix": "async-with",
+        "body": [
+          "async with ${1:resource} as ${2:r}:",
+          "    ${3:pass}"
+        ],
+        "description": "Async context manager."
+      },
+      {
+        "prefix": "import",
+        "body": [
+          "import ${1:module}"
+        ],
+        "description": "Import statement."
+      },
+      {
+        "prefix": "from-import",
+        "body": [
+          "from ${1:module} import ${2:name}"
+        ],
+        "description": "From import."
+      },
+      {
+        "prefix": "property",
+        "body": [
+          "@property",
+          "def ${1:name}(self):",
+          "    ${2:return self._field}"
+        ],
+        "description": "Property decorator."
+      },
+      {
+        "prefix": "staticmethod",
+        "body": [
+          "@staticmethod",
+          "def ${1:name}(${2:args}):",
+          "    ${3:pass}"
+        ],
+        "description": "Static method decorator."
+      },
+      {
+        "prefix": "classmethod",
+        "body": [
+          "@classmethod",
+          "def ${1:name}(cls, ${2:args}):",
+          "    ${3:pass}"
+        ],
+        "description": "Class method decorator."
+      },
+      {
+        "prefix": "match",
+        "body": [
+          "match ${1:subject}:",
+          "    case ${2:pattern}:",
+          "        ${3:pass}"
+        ],
+        "description": "Match statement (3.10+)."
+      },
+      {
+        "prefix": "typing",
+        "body": [
+          "def ${1:name}(${2:arg}: ${3:int}) -> ${4:str}:",
+          "    ${5:pass}"
+        ],
+        "description": "Function with type annotations."
+      },
+      {
+        "prefix": "typevar",
+        "body": [
+          "T = TypeVar(\"T\")"
+        ],
+        "description": "TypeVar declaration."
+      }
+    ],
+    "javascript": [
+      {
+        "prefix": "function",
+        "body": [
+          "function ${1:name}(${2:args}) {",
+          "    ${3:/* body */}",
+          "}"
+        ],
+        "description": "Function declaration."
+      },
+      {
+        "prefix": "arrow",
+        "body": [
+          "const ${1:name} = (${2:args}) => ${3:expr};"
+        ],
+        "description": "Arrow function."
+      },
+      {
+        "prefix": "async-arrow",
+        "body": [
+          "const ${1:name} = async (${2:args}) => {",
+          "    ${3:await something();}",
+          "};"
+        ],
+        "description": "Async arrow function."
+      },
+      {
+        "prefix": "class",
+        "body": [
+          "class ${1:Name} {",
+          "    constructor(${2:args}) {",
+          "        ${3:/* */}",
+          "    }",
+          "}"
+        ],
+        "description": "Class declaration."
+      },
+      {
+        "prefix": "extends",
+        "body": [
+          "class ${1:Child} extends ${2:Parent} {",
+          "    constructor(${3:args}) {",
+          "        super(${3:args});",
+          "        ${4:/* */}",
+          "    }",
+          "}"
+        ],
+        "description": "Class extending another."
+      },
+      {
+        "prefix": "if",
+        "body": [
+          "if (${1:condition}) {",
+          "    ${2:/* */}",
+          "}"
+        ],
+        "description": "If statement."
+      },
+      {
+        "prefix": "if-else",
+        "body": [
+          "if (${1:condition}) {",
+          "    ${2:/* */}",
+          "} else {",
+          "    ${3:/* */}",
+          "}"
+        ],
+        "description": "If-else."
+      },
+      {
+        "prefix": "ternary",
+        "body": [
+          "${1:cond} ? ${2:a} : ${3:b};"
+        ],
+        "description": "Ternary expression."
+      },
+      {
+        "prefix": "for",
+        "body": [
+          "for (let ${1:i} = 0; i < ${2:n}; ${1:i}++) {",
+          "    ${3:/* */}",
+          "}"
+        ],
+        "description": "C-style for loop."
+      },
+      {
+        "prefix": "for-of",
+        "body": [
+          "for (const ${1:item} of ${2:iterable}) {",
+          "    ${3:/* */}",
+          "}"
+        ],
+        "description": "For-of loop."
+      },
+      {
+        "prefix": "for-in",
+        "body": [
+          "for (const ${1:key} in ${2:obj}) {",
+          "    ${3:/* */}",
+          "}"
+        ],
+        "description": "For-in loop."
+      },
+      {
+        "prefix": "while",
+        "body": [
+          "while (${1:condition}) {",
+          "    ${2:/* */}",
+          "}"
+        ],
+        "description": "While loop."
+      },
+      {
+        "prefix": "try",
+        "body": [
+          "try {",
+          "    ${1:/* */}",
+          "} catch (${2:e}) {",
+          "    ${3:/* */}",
+          "}"
+        ],
+        "description": "Try-catch."
+      },
+      {
+        "prefix": "try-finally",
+        "body": [
+          "try {",
+          "    ${1:/* */}",
+          "} catch (${2:e}) {",
+          "    ${3:/* */}",
+          "} finally {",
+          "    ${4:/* */}",
+          "}"
+        ],
+        "description": "Try-catch-finally."
+      },
+      {
+        "prefix": "console-log",
+        "body": [
+          "console.log(${1:\"text\"});"
+        ],
+        "description": "Console log."
+      },
+      {
+        "prefix": "console-error",
+        "body": [
+          "console.error(${1:\"text\"});"
+        ],
+        "description": "Console error."
+      },
+      {
+        "prefix": "promise",
+        "body": [
+          "new Promise((resolve, reject) => {",
+          "    ${1:/* */}",
+          "    resolve(${2:value});",
+          "});"
+        ],
+        "description": "New Promise."
+      },
+      {
+        "prefix": "async-function",
+        "body": [
+          "async function ${1:name}(${2:args}) {",
+          "    ${3:await something();}",
+          "}"
+        ],
+        "description": "Async function."
+      },
+      {
+        "prefix": "await",
+        "body": [
+          "const ${1:result} = await ${2:promise};"
+        ],
+        "description": "Await a promise."
+      },
+      {
+        "prefix": "export-default",
+        "body": [
+          "export default ${1:value};"
+        ],
+        "description": "Default export."
+      },
+      {
+        "prefix": "export",
+        "body": [
+          "export const ${1:name} = ${2:value};"
+        ],
+        "description": "Named export."
+      },
+      {
+        "prefix": "import",
+        "body": [
+          "import { ${1:name} } from \"${2:module}\";"
+        ],
+        "description": "Named import."
+      },
+      {
+        "prefix": "import-default",
+        "body": [
+          "import ${1:name} from \"${2:module}\";"
+        ],
+        "description": "Default import."
+      },
+      {
+        "prefix": "json-parse",
+        "body": [
+          "JSON.parse(${1:text});"
+        ],
+        "description": "JSON parse."
+      },
+      {
+        "prefix": "json-stringify",
+        "body": [
+          "JSON.stringify(${1:obj}, null, 2);"
+        ],
+        "description": "JSON stringify pretty."
+      }
+    ],
+    "typescript": [
+      {
+        "prefix": "interface",
+        "body": [
+          "interface ${1:Name} {",
+          "    ${2:property}: ${3:type};",
+          "}"
+        ],
+        "description": "Interface declaration."
+      },
+      {
+        "prefix": "type",
+        "body": [
+          "type ${1:Name} = ${2:type};"
+        ],
+        "description": "Type alias."
+      },
+      {
+        "prefix": "enum",
+        "body": [
+          "enum ${1:Name} {",
+          "    ${2:Member} = ${3:0},",
+          "}"
+        ],
+        "description": "Enum declaration."
+      },
+      {
+        "prefix": "const-enum",
+        "body": [
+          "const enum ${1:Name} {",
+          "    ${2:Member},",
+          "}"
+        ],
+        "description": "Const enum."
+      },
+      {
+        "prefix": "generic",
+        "body": [
+          "function ${1:name}<${2:T}>(${3:arg}: ${2:T}): ${2:T} {",
+          "    return ${3:arg};",
+          "}"
+        ],
+        "description": "Generic function."
+      },
+      {
+        "prefix": "async",
+        "body": [
+          "async function ${1:name}(${2:args}): Promise<${3:void}> {",
+          "    ${4:/* */}",
+          "}"
+        ],
+        "description": "Async function."
+      },
+      {
+        "prefix": "promise",
+        "body": [
+          "new Promise<${1:T}>((resolve, reject) => {",
+          "    ${2:/* */}",
+          "});"
+        ],
+        "description": "Typed Promise."
+      },
+      {
+        "prefix": "class",
+        "body": [
+          "class ${1:Name} {",
+          "    ${2:property}: ${3:type};",
+          "    constructor(${2:property}: ${3:type}) {",
+          "        this.${2:property} = ${2:property};",
+          "    }",
+          "}"
+        ],
+        "description": "Class with properties."
+      },
+      {
+        "prefix": "abstract-class",
+        "body": [
+          "abstract class ${1:Name} {",
+          "    abstract ${2:method}(): ${3:void};",
+          "}"
+        ],
+        "description": "Abstract class."
+      },
+      {
+        "prefix": "decorator",
+        "body": [
+          "function ${1:Name}(target: any, key: string, desc: PropertyDescriptor) {",
+          "    ${2:/* */}",
+          "}"
+        ],
+        "description": "Method decorator."
+      },
+      {
+        "prefix": "type-guard",
+        "body": [
+          "function is${1:Type}(x: any): x is ${1:Type} {",
+          "    return ${2:/* */};",
+          "}"
+        ],
+        "description": "User-defined type guard."
+      },
+      {
+        "prefix": "mapped-type",
+        "body": [
+          "type ${1:Mutable}<T> = {",
+          "    -readonly [P in keyof T]: T[P];",
+          "};"
+        ],
+        "description": "Mapped type."
+      },
+      {
+        "prefix": "conditional-type",
+        "body": [
+          "type ${1:NonNullable}<T> = T extends null | undefined ? never : T;"
+        ],
+        "description": "Conditional type."
+      },
+      {
+        "prefix": "utility",
+        "body": [
+          "type ${1:Partial}<T> = Partial<${2:Type}>;"
+        ],
+        "description": "Partial<T> usage."
+      },
+      {
+        "prefix": "import-type",
+        "body": [
+          "import type { ${1:Name} } from \"${2:module}\";"
+        ],
+        "description": "Type-only import."
+      },
+      {
+        "prefix": "export-type",
+        "body": [
+          "export type { ${1:Name} };"
+        ],
+        "description": "Type-only export."
+      }
+    ],
+    "rust": [
+      {
+        "prefix": "fn",
+        "body": [
+          "fn ${1:name}(${2:args}) -> ${3:()} {",
+          "    ${4:/* body */}",
+          "}"
+        ],
+        "description": "Function declaration."
+      },
+      {
+        "prefix": "pub-fn",
+        "body": [
+          "pub fn ${1:name}(${2:args}) -> ${3:()} {",
+          "    ${4:/* body */}",
+          "}"
+        ],
+        "description": "Public function."
+      },
+      {
+        "prefix": "struct",
+        "body": [
+          "struct ${1:Name} {",
+          "    ${2:field}: ${3:Type},",
+          "}"
+        ],
+        "description": "Struct declaration."
+      },
+      {
+        "prefix": "enum",
+        "body": [
+          "enum ${1:Name} {",
+          "    ${2:Variant},",
+          "    ${3:Variant2(${4:Type})},",
+          "}"
+        ],
+        "description": "Enum declaration."
+      },
+      {
+        "prefix": "impl",
+        "body": [
+          "impl ${1:Name} {",
+          "    fn ${2:method}(&self) -> ${3:Type} {",
+          "        ${4:/* */}",
+          "    }",
+          "}"
+        ],
+        "description": "Impl block."
+      },
+      {
+        "prefix": "trait",
+        "body": [
+          "trait ${1:Name} {",
+          "    fn ${2:method}(&self) -> ${3:Type};",
+          "}"
+        ],
+        "description": "Trait declaration."
+      },
+      {
+        "prefix": "impl-trait",
+        "body": [
+          "impl ${1:Trait} for ${2:Type} {",
+          "    fn ${3:method}(&self) -> ${4:Type} {",
+          "        ${5:/* */}",
+          "    }",
+          "}"
+        ],
+        "description": "Implement trait for a type."
+      },
+      {
+        "prefix": "match",
+        "body": [
+          "match ${1:subject} {",
+          "    ${2:Pattern} => ${3:expr},",
+          "    _ => ${4:default},",
+          "}"
+        ],
+        "description": "Match expression."
+      },
+      {
+        "prefix": "if-let",
+        "body": [
+          "if let ${1:Some(${2:x})} = ${3:expr} {",
+          "    ${4:/* */}",
+          "}"
+        ],
+        "description": "If-let pattern match."
+      },
+      {
+        "prefix": "while-let",
+        "body": [
+          "while let ${1:Some(${2:x})} = ${3:expr} {",
+          "    ${4:/* */}",
+          "}"
+        ],
+        "description": "While-let pattern match."
+      },
+      {
+        "prefix": "for",
+        "body": [
+          "for ${1:item} in ${2:iterable} {",
+          "    ${3:/* */}",
+          "}"
+        ],
+        "description": "For-in loop."
+      },
+      {
+        "prefix": "loop",
+        "body": [
+          "loop {",
+          "    ${1:/* body */}",
+          "    if ${2:condition} { break; }",
+          "}"
+        ],
+        "description": "Infinite loop with break."
+      },
+      {
+        "prefix": "vec",
+        "body": [
+          "let ${1:vec}: Vec<${2:Type}> = Vec::new();"
+        ],
+        "description": "Create a Vec."
+      },
+      {
+        "prefix": "string",
+        "body": [
+          "let ${1:s} = String::from(${2:\"text\"});"
+        ],
+        "description": "Create a String."
+      },
+      {
+        "prefix": "print",
+        "body": [
+          "println!(\"{}\", ${1:expr});"
+        ],
+        "description": "println! macro."
+      },
+      {
+        "prefix": "vec-macro",
+        "body": [
+          "let ${1:v} = vec![${2:1, 2, 3}];"
+        ],
+        "description": "vec! macro."
+      },
+      {
+        "prefix": "option",
+        "body": [
+          "let ${1:opt}: Option<${2:Type}> = Some(${3:value});"
+        ],
+        "description": "Option<T>."
+      },
+      {
+        "prefix": "result",
+        "body": [
+          "let ${1:res}: Result<${2:T}, ${3:E}> = Ok(${4:value});"
+        ],
+        "description": "Result<T, E>."
+      },
+      {
+        "prefix": "use",
+        "body": [
+          "use ${1:crate}::${2:module};"
+        ],
+        "description": "Use statement."
+      },
+      {
+        "prefix": "mod",
+        "body": [
+          "mod ${1:name} {",
+          "    ${2:/* body */}",
+          "}"
+        ],
+        "description": "Module declaration."
+      },
+      {
+        "prefix": "async",
+        "body": [
+          "async fn ${1:name}(${2:args}) -> ${3:Type} {",
+          "    ${4:/* */}",
+          "}"
+        ],
+        "description": "Async function."
+      },
+      {
+        "prefix": "await",
+        "body": [
+          "let ${1:result} = ${2:future}.await;"
+        ],
+        "description": "Await a future."
+      }
+    ],
+    "go": [
+      {
+        "prefix": "package",
+        "body": [
+          "package ${1:main}"
+        ],
+        "description": "Package declaration."
+      },
+      {
+        "prefix": "import",
+        "body": [
+          "import (",
+          "    \"${1:fmt}\"",
+          ")"
+        ],
+        "description": "Import block."
+      },
+      {
+        "prefix": "func",
+        "body": [
+          "func ${1:name}(${2:args}) ${3:returnType} {",
+          "    ${4:/* body */}",
+          "}"
+        ],
+        "description": "Function declaration."
+      },
+      {
+        "prefix": "method",
+        "body": [
+          "func (${1:receiver} ${2:*Type}) ${3:method}() ${4:returnType} {",
+          "    ${5:/* */}",
+          "}"
+        ],
+        "description": "Method on a type."
+      },
+      {
+        "prefix": "struct",
+        "body": [
+          "type ${1:Name} struct {",
+          "    ${2:Field} ${3:Type}",
+          "}"
+        ],
+        "description": "Struct declaration."
+      },
+      {
+        "prefix": "interface",
+        "body": [
+          "type ${1:Name} interface {",
+          "    ${2:Method}() ${3:returnType}",
+          "}"
+        ],
+        "description": "Interface declaration."
+      },
+      {
+        "prefix": "if",
+        "body": [
+          "if ${1:condition} {",
+          "    ${2:/* */}",
+          "}"
+        ],
+        "description": "If statement."
+      },
+      {
+        "prefix": "if-else",
+        "body": [
+          "if ${1:condition} {",
+          "    ${2:/* */}",
+          "} else {",
+          "    ${3:/* */}",
+          "}"
+        ],
+        "description": "If-else."
+      },
+      {
+        "prefix": "if-init",
+        "body": [
+          "if ${1:x} := ${2:expr}; ${1:x} != nil {",
+          "    ${3:/* */}",
+          "}"
+        ],
+        "description": "If with init statement."
+      },
+      {
+        "prefix": "for",
+        "body": [
+          "for ${1:i} := 0; ${1:i} < ${2:n}; ${1:i}++ {",
+          "    ${3:/* */}",
+          "}"
+        ],
+        "description": "C-style for loop."
+      },
+      {
+        "prefix": "for-range",
+        "body": [
+          "for ${1:i}, ${2:v} := range ${3:collection} {",
+          "    ${4:/* */}",
+          "}"
+        ],
+        "description": "For range loop."
+      },
+      {
+        "prefix": "switch",
+        "body": [
+          "switch ${1:subject} {",
+          "case ${2:value}:",
+          "    ${3:/* */}",
+          "default:",
+          "    ${4:/* */}",
+          "}"
+        ],
+        "description": "Switch statement."
+      },
+      {
+        "prefix": "select",
+        "body": [
+          "select {",
+          "case ${1:msg} := <-${2:channel}:",
+          "    ${3:/* */}",
+          "}"
+        ],
+        "description": "Select on channels."
+      },
+      {
+        "prefix": "go-func",
+        "body": [
+          "go ${1:func}(${2:args})"
+        ],
+        "description": "Launch a goroutine."
+      },
+      {
+        "prefix": "defer",
+        "body": [
+          "defer ${1:cleanup}()"
+        ],
+        "description": "Defer a function call."
+      },
+      {
+        "prefix": "var",
+        "body": [
+          "var ${1:name} ${2:Type} = ${3:value}"
+        ],
+        "description": "Variable declaration."
+      },
+      {
+        "prefix": "const",
+        "body": [
+          "const ${1:Name} = ${2:value}"
+        ],
+        "description": "Constant declaration."
+      },
+      {
+        "prefix": "type",
+        "body": [
+          "type ${1:Name} ${2:Type}"
+        ],
+        "description": "Type alias."
+      },
+      {
+        "prefix": "make",
+        "body": [
+          "${1:x} := make(${2:[]int}, ${3:0})"
+        ],
+        "description": "Make a slice/map/channel."
+      },
+      {
+        "prefix": "panic",
+        "body": [
+          "panic(${1:\"message\"})"
+        ],
+        "description": "Panic."
+      },
+      {
+        "prefix": "recover",
+        "body": [
+          "if r := recover(); r != nil {",
+          "    ${1:/* handle */}",
+          "}"
+        ],
+        "description": "Recover from panic."
+      },
+      {
+        "prefix": "goroutine-channel",
+        "body": [
+          "ch := make(chan ${1:Type})",
+          "go func() {",
+          "    ch <- ${2:value}",
+          "}()",
+          "val := <-ch"
+        ],
+        "description": "Channel send/receive pattern."
+      }
+    ],
+    "csharp": [
+      {
+        "prefix": "class",
+        "body": [
+          "public class ${1:Name}",
+          "{",
+          "    ${2:/* body */}",
+          "}"
+        ],
+        "description": "Class declaration."
+      },
+      {
+        "prefix": "interface",
+        "body": [
+          "public interface ${1:Name}",
+          "{",
+          "    ${2:Method}();",
+          "}"
+        ],
+        "description": "Interface declaration."
+      },
+      {
+        "prefix": "struct",
+        "body": [
+          "public struct ${1:Name}",
+          "{",
+          "    public ${2:Type} ${3:Field};",
+          "}"
+        ],
+        "description": "Struct declaration."
+      },
+      {
+        "prefix": "enum",
+        "body": [
+          "public enum ${1:Name}",
+          "{",
+          "    ${2:Member},",
+          "    ${3:Member2}",
+          "}"
+        ],
+        "description": "Enum declaration."
+      },
+      {
+        "prefix": "method",
+        "body": [
+          "public ${1:void} ${2:Name}(${3:string arg})",
+          "{",
+          "    ${4:/* body */}",
+          "}"
+        ],
+        "description": "Method declaration."
+      },
+      {
+        "prefix": "async-method",
+        "body": [
+          "public async ${1:Task} ${2:Name}()",
+          "{",
+          "    await ${3:Something()};",
+          "}"
+        ],
+        "description": "Async method."
+      },
+      {
+        "prefix": "property",
+        "body": [
+          "public ${1:Type} ${2:Name} { get; set; }"
+        ],
+        "description": "Auto-property."
+      },
+      {
+        "prefix": "ctor",
+        "body": [
+          "public ${1:Name}(${2:string arg})",
+          "{",
+          "    ${3:/* */}",
+          "}"
+        ],
+        "description": "Constructor."
+      },
+      {
+        "prefix": "if",
+        "body": [
+          "if (${1:condition})",
+          "{",
+          "    ${2:/* */}",
+          "}"
+        ],
+        "description": "If statement."
+      },
+      {
+        "prefix": "if-else",
+        "body": [
+          "if (${1:condition})",
+          "{",
+          "    ${2:/* */}",
+          "}",
+          "else",
+          "{",
+          "    ${3:/* */}",
+          "}"
+        ],
+        "description": "If-else."
+      },
+      {
+        "prefix": "for",
+        "body": [
+          "for (int ${1:i} = 0; ${1:i} < ${2:n}; ${1:i}++)",
+          "{",
+          "    ${3:/* */}",
+          "}"
+        ],
+        "description": "For loop."
+      },
+      {
+        "prefix": "foreach",
+        "body": [
+          "foreach (var ${1:item} in ${2:collection})",
+          "{",
+          "    ${3:/* */}",
+          "}"
+        ],
+        "description": "Foreach loop."
+      },
+      {
+        "prefix": "while",
+        "body": [
+          "while (${1:condition})",
+          "{",
+          "    ${2:/* */}",
+          "}"
+        ],
+        "description": "While loop."
+      },
+      {
+        "prefix": "try",
+        "body": [
+          "try",
+          "{",
+          "    ${1:/* */}",
+          "}",
+          "catch (${2:Exception} ex)",
+          "{",
+          "    ${3:/* */}",
+          "}"
+        ],
+        "description": "Try-catch."
+      },
+      {
+        "prefix": "using",
+        "body": [
+          "using (var ${1:resource} = new ${2:Type}())",
+          "{",
+          "    ${3:/* */}",
+          "}"
+        ],
+        "description": "Using statement."
+      },
+      {
+        "prefix": "namespace",
+        "body": [
+          "namespace ${1:Namespace}",
+          "{",
+          "    ${2:/* body */}",
+          "}"
+        ],
+        "description": "Namespace declaration."
+      },
+      {
+        "prefix": "record",
+        "body": [
+          "public record ${1:Name}(${2:Type} ${3:Field});"
+        ],
+        "description": "Record declaration."
+      },
+      {
+        "prefix": "linq",
+        "body": [
+          "var ${1:results} = from ${2:item} in ${3:collection}",
+          "    where ${2:item}.${4:Property} > ${5:0}",
+          "    select ${2:item};"
+        ],
+        "description": "LINQ query expression."
+      }
+    ],
+    "cpp": [
+      {
+        "prefix": "include",
+        "body": [
+          "#include <${1:iostream}>"
+        ],
+        "description": "Include directive."
+      },
+      {
+        "prefix": "main",
+        "body": [
+          "int main(int argc, char* argv[])",
+          "{",
+          "    std::cout << \"Hello, World!\" << std::endl;",
+          "    return 0;",
+          "}"
+        ],
+        "description": "main entry point."
+      },
+      {
+        "prefix": "cout",
+        "body": [
+          "std::cout << ${1:\"text\"} << std::endl;"
+        ],
+        "description": "Console output."
+      },
+      {
+        "prefix": "cerr",
+        "body": [
+          "std::cerr << ${1:\"error\"} << std::endl;"
+        ],
+        "description": "Console error output."
+      },
+      {
+        "prefix": "class",
+        "body": [
+          "class ${1:Name}",
+          "{",
+          "public:",
+          "    ${1:Name}();",
+          "    ~${1:Name}();",
+          "private:",
+          "    ${2:/* data */}",
+          "};"
+        ],
+        "description": "Class declaration."
+      },
+      {
+        "prefix": "struct",
+        "body": [
+          "struct ${1:Name}",
+          "{",
+          "    ${2:Type} ${3:field};",
+          "};"
+        ],
+        "description": "Struct declaration."
+      },
+      {
+        "prefix": "namespace",
+        "body": [
+          "namespace ${1:name}",
+          "{",
+          "    ${2:/* body */}",
+          "}"
+        ],
+        "description": "Namespace declaration."
+      },
+      {
+        "prefix": "template",
+        "body": [
+          "template <typename ${1:T}>",
+          "class ${2:Name}",
+          "{",
+          "    ${3:/* body */}",
+          "};"
+        ],
+        "description": "Template class."
+      },
+      {
+        "prefix": "template-fn",
+        "body": [
+          "template <typename ${1:T}>",
+          "${1:T} ${2:name}(const ${1:T}& ${3:arg})",
+          "{",
+          "    return ${3:arg};",
+          "}"
+        ],
+        "description": "Template function."
+      },
+      {
+        "prefix": "for",
+        "body": [
+          "for (int ${1:i} = 0; ${1:i} < ${2:n}; ++${1:i})",
+          "{",
+          "    ${3:/* body */}",
+          "}"
+        ],
+        "description": "For loop."
+      },
+      {
+        "prefix": "foreach",
+        "body": [
+          "for (const auto& ${1:item} : ${2:container})",
+          "{",
+          "    ${3:/* body */}",
+          "}"
+        ],
+        "description": "Range-based for."
+      },
+      {
+        "prefix": "while",
+        "body": [
+          "while (${1:condition})",
+          "{",
+          "    ${2:/* body */}",
+          "}"
+        ],
+        "description": "While loop."
+      },
+      {
+        "prefix": "if",
+        "body": [
+          "if (${1:condition})",
+          "{",
+          "    ${2:/* */}",
+          "}"
+        ],
+        "description": "If statement."
+      },
+      {
+        "prefix": "if-else",
+        "body": [
+          "if (${1:condition})",
+          "{",
+          "    ${2:/* */}",
+          "}",
+          "else",
+          "{",
+          "    ${3:/* */}",
+          "}"
+        ],
+        "description": "If-else."
+      },
+      {
+        "prefix": "try",
+        "body": [
+          "try",
+          "{",
+          "    ${1:/* */}",
+          "}",
+          "catch (const ${2:std::exception}& e)",
+          "{",
+          "    ${3:/* */}",
+          "}"
+        ],
+        "description": "Try-catch."
+      },
+      {
+        "prefix": "unique_ptr",
+        "body": [
+          "auto ${1:p} = std::make_unique<${2:Type}>(${3:args});"
+        ],
+        "description": "std::unique_ptr."
+      },
+      {
+        "prefix": "shared_ptr",
+        "body": [
+          "auto ${1:p} = std::make_shared<${2:Type}>(${3:args});"
+        ],
+        "description": "std::shared_ptr."
+      },
+      {
+        "prefix": "vector",
+        "body": [
+          "std::vector<${1:int}> ${2:v};"
+        ],
+        "description": "std::vector declaration."
+      },
+      {
+        "prefix": "string",
+        "body": [
+          "std::string ${1:s} = ${2:\"text\"};"
+        ],
+        "description": "std::string declaration."
+      },
+      {
+        "prefix": "lambda",
+        "body": [
+          "auto ${1:f} = [${2:capture}](${3:args}) -> ${4:returnType} {",
+          "    ${5:/* body */}",
+          "};"
+        ],
+        "description": "Lambda expression."
+      },
+      {
+        "prefix": "pragma-once",
+        "body": [
+          "#pragma once"
+        ],
+        "description": "Include guard."
+      },
+      {
+        "prefix": "ifdef",
+        "body": [
+          "#ifdef ${1:MACRO}",
+          "${2:/* body */}",
+          "#endif // ${1:MACRO}"
+        ],
+        "description": "Ifdef conditional."
+      }
+    ],
+    "swift": [
+      {
+        "prefix": "func",
+        "body": [
+          "func ${1:name}(${2:args}) -> ${3:Void} {",
+          "    ${4:/* body */}",
+          "}"
+        ],
+        "description": "Function declaration."
+      },
+      {
+        "prefix": "async-func",
+        "body": [
+          "func ${1:name}(${2:args}) async -> ${3:Type} {",
+          "    ${4:await something()}",
+          "}"
+        ],
+        "description": "Async function."
+      },
+      {
+        "prefix": "actor",
+        "body": [
+          "actor ${1:Name} {",
+          "    ${2:/* state */}",
+          "}"
+        ],
+        "description": "Actor declaration."
+      },
+      {
+        "prefix": "struct",
+        "body": [
+          "struct ${1:Name} {",
+          "    ${2:let property}: ${3:Type}",
+          "}"
+        ],
+        "description": "Struct declaration."
+      },
+      {
+        "prefix": "class",
+        "body": [
+          "class ${1:Name}: ${2:Superclass} {",
+          "    ${3:/* body */}",
+          "}"
+        ],
+        "description": "Class declaration."
+      },
+      {
+        "prefix": "enum",
+        "body": [
+          "enum ${1:Name} {",
+          "    case ${2:variant}",
+          "    case ${3:variant2}",
+          "}"
+        ],
+        "description": "Enum declaration."
+      },
+      {
+        "prefix": "protocol",
+        "body": [
+          "protocol ${1:Name} {",
+          "    func ${2:method}()",
+          "}"
+        ],
+        "description": "Protocol declaration."
+      },
+      {
+        "prefix": "extension",
+        "body": [
+          "extension ${1:Type} {",
+          "    ${2:/* body */}",
+          "}"
+        ],
+        "description": "Extension declaration."
+      },
+      {
+        "prefix": "if",
+        "body": [
+          "if ${1:condition} {",
+          "    ${2:/* */}",
+          "}"
+        ],
+        "description": "If statement."
+      },
+      {
+        "prefix": "guard",
+        "body": [
+          "guard ${1:condition} else {",
+          "    ${2:return}",
+          "}"
+        ],
+        "description": "Guard statement."
+      },
+      {
+        "prefix": "if-let",
+        "body": [
+          "if let ${1:value} = ${2:optional} {",
+          "    ${3:/* */}",
+          "}"
+        ],
+        "description": "If-let optional binding."
+      },
+      {
+        "prefix": "guard-let",
+        "body": [
+          "guard let ${1:value} = ${2:optional} else {",
+          "    ${3:return}",
+          "}"
+        ],
+        "description": "Guard-let."
+      },
+      {
+        "prefix": "for",
+        "body": [
+          "for ${1:item} in ${2:collection} {",
+          "    ${3:/* */}",
+          "}"
+        ],
+        "description": "For-in loop."
+      },
+      {
+        "prefix": "while",
+        "body": [
+          "while ${1:condition} {",
+          "    ${2:/* */}",
+          "}"
+        ],
+        "description": "While loop."
+      },
+      {
+        "prefix": "switch",
+        "body": [
+          "switch ${1:subject} {",
+          "case ${2:pattern}:",
+          "    ${3:/* */}",
+          "default:",
+          "    ${4:/* */}",
+          "}"
+        ],
+        "description": "Switch statement."
+      },
+      {
+        "prefix": "do-catch",
+        "body": [
+          "do {",
+          "    ${1:try something()}",
+          "} catch {",
+          "    ${2:/* handle */}",
+          "}"
+        ],
+        "description": "Do-catch."
+      },
+      {
+        "prefix": "property",
+        "body": [
+          "var ${1:name}: ${2:Type} {",
+          "    get { ${3:/* */} }",
+          "    set { ${4:/* */} }",
+          "}"
+        ],
+        "description": "Computed property."
+      },
+      {
+        "prefix": "didset",
+        "body": [
+          "var ${1:name}: ${2:Type} = ${3:initial} {",
+          "    didSet { ${4:/* */} }",
+          "}"
+        ],
+        "description": "Property with observer."
+      },
+      {
+        "prefix": "println",
+        "body": [
+          "print(${1:\"text\"})"
+        ],
+        "description": "Print a line."
+      }
+    ],
+    "php": [
+      {
+        "prefix": "php-open",
+        "body": [
+          "<?php",
+          "${1:/* body */}"
+        ],
+        "description": "PHP opening tag."
+      },
+      {
+        "prefix": "php-echo",
+        "body": [
+          "echo ${1:\"text\"};"
+        ],
+        "description": "Echo statement."
+      },
+      {
+        "prefix": "function",
+        "body": [
+          "function ${1:name}(${2:args}): ${3:void}",
+          "{",
+          "    ${4:/* body */}",
+          "}"
+        ],
+        "description": "Function declaration."
+      },
+      {
+        "prefix": "class",
+        "body": [
+          "class ${1:Name}",
+          "{",
+          "    public function __construct(${2:args})",
+          "    {",
+          "        ${3:/* */}",
+          "    }",
+          "}"
+        ],
+        "description": "Class declaration."
+      },
+      {
+        "prefix": "interface",
+        "body": [
+          "interface ${1:Name}",
+          "{",
+          "    public function ${2:method}(): ${3:void};",
+          "}"
+        ],
+        "description": "Interface declaration."
+      },
+      {
+        "prefix": "trait",
+        "body": [
+          "trait ${1:Name}",
+          "{",
+          "    ${2:/* body */}",
+          "}"
+        ],
+        "description": "Trait declaration."
+      },
+      {
+        "prefix": "enum",
+        "body": [
+          "enum ${1:Name}: ${2:string}",
+          "{",
+          "    case ${3:Member} = ${4:\"value\"};",
+          "}"
+        ],
+        "description": "Backed enum."
+      },
+      {
+        "prefix": "if",
+        "body": [
+          "if (${1:condition}) {",
+          "    ${2:/* */}",
+          "}"
+        ],
+        "description": "If statement."
+      },
+      {
+        "prefix": "if-else",
+        "body": [
+          "if (${1:condition}) {",
+          "    ${2:/* */}",
+          "} else {",
+          "    ${3:/* */}",
+          "}"
+        ],
+        "description": "If-else."
+      },
+      {
+        "prefix": "for",
+        "body": [
+          "for ($${1:i} = 0; $${1:i} < ${2:n}; $${1:i}++) {",
+          "    ${3:/* */}",
+          "}"
+        ],
+        "description": "C-style for loop."
+      },
+      {
+        "prefix": "foreach",
+        "body": [
+          "foreach ($${1:array} as $${2:value}) {",
+          "    ${3:/* */}",
+          "}"
+        ],
+        "description": "Foreach loop."
+      },
+      {
+        "prefix": "while",
+        "body": [
+          "while (${1:condition}) {",
+          "    ${2:/* */}",
+          "}"
+        ],
+        "description": "While loop."
+      },
+      {
+        "prefix": "try",
+        "body": [
+          "try {",
+          "    ${1:/* */}",
+          "} catch (${2:Exception} $e) {",
+          "    ${3:/* */}",
+          "}"
+        ],
+        "description": "Try-catch."
+      },
+      {
+        "prefix": "arrow-fn",
+        "body": [
+          "fn(${1:args}) => ${2:expr};"
+        ],
+        "description": "Short closure (arrow function)."
+      },
+      {
+        "prefix": "closure",
+        "body": [
+          "function (${1:args}) use ($${2:var}) {",
+          "    ${3:/* */}",
+          "};"
+        ],
+        "description": "Anonymous closure."
+      },
+      {
+        "prefix": "property",
+        "body": [
+          "public ${1:Type} $${2:name};"
+        ],
+        "description": "Public class property."
+      },
+      {
+        "prefix": "typed-property",
+        "body": [
+          "public ${1:Type} $${2:name};"
+        ],
+        "description": "Typed property."
+      },
+      {
+        "prefix": "constructor-promotion",
+        "body": [
+          "public function __construct(",
+          "    private ${1:Type} $${2:name}",
+          ") {}"
+        ],
+        "description": "Constructor promotion."
+      },
+      {
+        "prefix": "match",
+        "body": [
+          "match (${1:subject}) {",
+          "    ${2:value1} => ${3:expr1},",
+          "    ${4:value2} => ${5:expr2},",
+          "    default => ${6:default},",
+          "};"
+        ],
+        "description": "Match expression (8+)."
+      }
+    ],
+    "ruby": [
+      {
+        "prefix": "def",
+        "body": [
+          "def ${1:name}(${2:args})",
+          "    ${3:/* body */}",
+          "end"
+        ],
+        "description": "Method definition."
+      },
+      {
+        "prefix": "class",
+        "body": [
+          "class ${1:Name}",
+          "    def initialize(${2:args})",
+          "        ${3:/* */}",
+          "    end",
+          "end"
+        ],
+        "description": "Class declaration."
+      },
+      {
+        "prefix": "module",
+        "body": [
+          "module ${1:Name}",
+          "    ${2:/* body */}",
+          "end"
+        ],
+        "description": "Module declaration."
+      },
+      {
+        "prefix": "if",
+        "body": [
+          "if ${1:condition}",
+          "    ${2:/* */}",
+          "end"
+        ],
+        "description": "If statement."
+      },
+      {
+        "prefix": "if-else",
+        "body": [
+          "if ${1:condition}",
+          "    ${2:/* */}",
+          "else",
+          "    ${3:/* */}",
+          "end"
+        ],
+        "description": "If-else."
+      },
+      {
+        "prefix": "unless",
+        "body": [
+          "unless ${1:condition}",
+          "    ${2:/* */}",
+          "end"
+        ],
+        "description": "Unless statement."
+      },
+      {
+        "prefix": "case",
+        "body": [
+          "case ${1:subject}",
+          "when ${2:value}",
+          "    ${3:/* */}",
+          "else",
+          "    ${4:/* */}",
+          "end"
+        ],
+        "description": "Case statement."
+      },
+      {
+        "prefix": "while",
+        "body": [
+          "while ${1:condition}",
+          "    ${2:/* */}",
+          "end"
+        ],
+        "description": "While loop."
+      },
+      {
+        "prefix": "until",
+        "body": [
+          "until ${1:condition}",
+          "    ${2:/* */}",
+          "end"
+        ],
+        "description": "Until loop."
+      },
+      {
+        "prefix": "each",
+        "body": [
+          "${1:collection}.each do |${2:item}|",
+          "    ${3:/* */}",
+          "end"
+        ],
+        "description": "Each loop."
+      },
+      {
+        "prefix": "map",
+        "body": [
+          "${1:collection}.map { |${2:item}| ${3:/* */} }"
+        ],
+        "description": "Map block."
+      },
+      {
+        "prefix": "select",
+        "body": [
+          "${1:collection}.select { |${2:item}| ${3:/* */} }"
+        ],
+        "description": "Select block."
+      },
+      {
+        "prefix": "reduce",
+        "body": [
+          "${1:collection}.reduce(${2:0}) { |${3:acc}, ${4:item}| ${5:/* */} }"
+        ],
+        "description": "Reduce block."
+      },
+      {
+        "prefix": "begin",
+        "body": [
+          "begin",
+          "    ${1:/* */}",
+          "rescue ${2:Exception} => e",
+          "    ${3:/* handle */}",
+          "end"
+        ],
+        "description": "Begin-rescue."
+      },
+      {
+        "prefix": "lambda",
+        "body": [
+          "${1:l} = lambda { |${2:args}| ${3:/* */} }"
+        ],
+        "description": "Lambda."
+      },
+      {
+        "prefix": "proc",
+        "body": [
+          "${1:p} = Proc.new { |${2:args}| ${3:/* */} }"
+        ],
+        "description": "Proc."
+      },
+      {
+        "prefix": "attr-accessor",
+        "body": [
+          "attr_accessor :${1:name}"
+        ],
+        "description": "Attribute accessor."
+      },
+      {
+        "prefix": "attr-reader",
+        "body": [
+          "attr_reader :${1:name}"
+        ],
+        "description": "Attribute reader."
+      },
+      {
+        "prefix": "attr-writer",
+        "body": [
+          "attr_writer :${1:name}"
+        ],
+        "description": "Attribute writer."
+      },
+      {
+        "prefix": "puts",
+        "body": [
+          "puts ${1:\"text\"}"
+        ],
+        "description": "Print with newline."
+      },
+      {
+        "prefix": "pp",
+        "body": [
+          "require \"pp\"",
+          "pp ${1:object}"
+        ],
+        "description": "Pretty-print."
+      },
+      {
+        "prefix": "require",
+        "body": [
+          "require \"${1:module}\""
+        ],
+        "description": "Require a module."
+      },
+      {
+        "prefix": "require-relative",
+        "body": [
+          "require_relative \"${1:file}\""
+        ],
+        "description": "Require a relative file."
+      }
+    ]
+  }
+}

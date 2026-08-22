@@ -1283,7 +1283,13 @@ fun applyTextTransform(
         }.joinToString("")
     }
     val newText = if (hasSelection) text.substring(0, selStart) + transformed + text.substring(selEnd) else transformed
-    return value.copy(text = newText, selection = TextRange(selStart + transformed.length.coerceAtMost(newText.length)))
+    // v0.11 — FIX (H2): operator precedence bug. The previous form
+    // `selStart + transformed.length.coerceAtMost(newText.length)` was
+    // parsed as `selStart + (transformed.length.coerceAtMost(...))` which
+    // could push the caret past `newText.length` after a whole-document
+    // transform. Now coerced correctly to a valid range.
+    val newEnd = (selStart + transformed.length).coerceIn(0, newText.length)
+    return value.copy(text = newText, selection = TextRange(newEnd))
 }
 
 private fun snakeToCamel(s: String): String {

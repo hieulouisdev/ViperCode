@@ -1,0 +1,143 @@
+{
+  "language": "typescript",
+  "format": "vscode-snippets-v1",
+  "snippets": [
+    {
+      "prefix": "interface",
+      "body": [
+        "interface ${1:Name} {",
+        "    ${2:property}: ${3:type};",
+        "}"
+      ],
+      "description": "Interface declaration."
+    },
+    {
+      "prefix": "type",
+      "body": [
+        "type ${1:Name} = ${2:type};"
+      ],
+      "description": "Type alias."
+    },
+    {
+      "prefix": "enum",
+      "body": [
+        "enum ${1:Name} {",
+        "    ${2:Member} = ${3:0},",
+        "}"
+      ],
+      "description": "Enum declaration."
+    },
+    {
+      "prefix": "const-enum",
+      "body": [
+        "const enum ${1:Name} {",
+        "    ${2:Member},",
+        "}"
+      ],
+      "description": "Const enum."
+    },
+    {
+      "prefix": "generic",
+      "body": [
+        "function ${1:name}<${2:T}>(${3:arg}: ${2:T}): ${2:T} {",
+        "    return ${3:arg};",
+        "}"
+      ],
+      "description": "Generic function."
+    },
+    {
+      "prefix": "async",
+      "body": [
+        "async function ${1:name}(${2:args}): Promise<${3:void}> {",
+        "    ${4:/* */}",
+        "}"
+      ],
+      "description": "Async function."
+    },
+    {
+      "prefix": "promise",
+      "body": [
+        "new Promise<${1:T}>((resolve, reject) => {",
+        "    ${2:/* */}",
+        "});"
+      ],
+      "description": "Typed Promise."
+    },
+    {
+      "prefix": "class",
+      "body": [
+        "class ${1:Name} {",
+        "    ${2:property}: ${3:type};",
+        "    constructor(${2:property}: ${3:type}) {",
+        "        this.${2:property} = ${2:property};",
+        "    }",
+        "}"
+      ],
+      "description": "Class with properties."
+    },
+    {
+      "prefix": "abstract-class",
+      "body": [
+        "abstract class ${1:Name} {",
+        "    abstract ${2:method}(): ${3:void};",
+        "}"
+      ],
+      "description": "Abstract class."
+    },
+    {
+      "prefix": "decorator",
+      "body": [
+        "function ${1:Name}(target: any, key: string, desc: PropertyDescriptor) {",
+        "    ${2:/* */}",
+        "}"
+      ],
+      "description": "Method decorator."
+    },
+    {
+      "prefix": "type-guard",
+      "body": [
+        "function is${1:Type}(x: any): x is ${1:Type} {",
+        "    return ${2:/* */};",
+        "}"
+      ],
+      "description": "User-defined type guard."
+    },
+    {
+      "prefix": "mapped-type",
+      "body": [
+        "type ${1:Mutable}<T> = {",
+        "    -readonly [P in keyof T]: T[P];",
+        "};"
+      ],
+      "description": "Mapped type."
+    },
+    {
+      "prefix": "conditional-type",
+      "body": [
+        "type ${1:NonNullable}<T> = T extends null | undefined ? never : T;"
+      ],
+      "description": "Conditional type."
+    },
+    {
+      "prefix": "utility",
+      "body": [
+        "type ${1:Partial}<T> = Partial<${2:Type}>;"
+      ],
+      "description": "Partial<T> usage."
+    },
+    {
+      "prefix": "import-type",
+      "body": [
+        "import type { ${1:Name} } from \"${2:module}\";"
+      ],
+      "description": "Type-only import."
+    },
+    {
+      "prefix": "export-type",
+      "body": [
+        "export type { ${1:Name} };"
+      ],
+      "description": "Type-only export."
+    }
+  ]
+}

@@ -1,0 +1,215 @@
+{
+  "language": "cpp",
+  "format": "vscode-snippets-v1",
+  "snippets": [
+    {
+      "prefix": "include",
+      "body": [
+        "#include <${1:iostream}>"
+      ],
+      "description": "Include directive."
+    },
+    {
+      "prefix": "main",
+      "body": [
+        "int main(int argc, char* argv[])",
+        "{",
+        "    std::cout << \"Hello, World!\" << std::endl;",
+        "    return 0;",
+        "}"
+      ],
+      "description": "main entry point."
+    },
+    {
+      "prefix": "cout",
+      "body": [
+        "std::cout << ${1:\"text\"} << std::endl;"
+      ],
+      "description": "Console output."
+    },
+    {
+      "prefix": "cerr",
+      "body": [
+        "std::cerr << ${1:\"error\"} << std::endl;"
+      ],
+      "description": "Console error output."
+    },
+    {
+      "prefix": "class",
+      "body": [
+        "class ${1:Name}",
+        "{",
+        "public:",
+        "    ${1:Name}();",
+        "    ~${1:Name}();",
+        "private:",
+        "    ${2:/* data */}",
+        "};"
+      ],
+      "description": "Class declaration."
+    },
+    {
+      "prefix": "struct",
+      "body": [
+        "struct ${1:Name}",
+        "{",
+        "    ${2:Type} ${3:field};",
+        "};"
+      ],
+      "description": "Struct declaration."
+    },
+    {
+      "prefix": "namespace",
+      "body": [
+        "namespace ${1:name}",
+        "{",
+        "    ${2:/* body */}",
+        "}"
+      ],
+      "description": "Namespace declaration."
+    },
+    {
+      "prefix": "template",
+      "body": [
+        "template <typename ${1:T}>",
+        "class ${2:Name}",
+        "{",
+        "    ${3:/* body */}",
+        "};"
+      ],
+      "description": "Template class."
+    },
+    {
+      "prefix": "template-fn",
+      "body": [
+        "template <typename ${1:T}>",
+        "${1:T} ${2:name}(const ${1:T}& ${3:arg})",
+        "{",
+        "    return ${3:arg};",
+        "}"
+      ],
+      "description": "Template function."
+    },
+    {
+      "prefix": "for",
+      "body": [
+        "for (int ${1:i} = 0; ${1:i} < ${2:n}; ++${1:i})",
+        "{",
+        "    ${3:/* body */}",
+        "}"
+      ],
+      "description": "For loop."
+    },
+    {
+      "prefix": "foreach",
+      "body": [
+        "for (const auto& ${1:item} : ${2:container})",
+        "{",
+        "    ${3:/* body */}",
+        "}"
+      ],
+      "description": "Range-based for."
+    },
+    {
+      "prefix": "while",
+      "body": [
+        "while (${1:condition})",
+        "{",
+        "    ${2:/* body */}",
+        "}"
+      ],
+      "description": "While loop."
+    },
+    {
+      "prefix": "if",
+      "body": [
+        "if (${1:condition})",
+        "{",
+        "    ${2:/* */}",
+        "}"
+      ],
+      "description": "If statement."
+    },
+    {
+      "prefix": "if-else",
+      "body": [
+        "if (${1:condition})",
+        "{",
+        "    ${2:/* */}",
+        "}",
+        "else",
+        "{",
+        "    ${3:/* */}",
+        "}"
+      ],
+      "description": "If-else."
+    },
+    {
+      "prefix": "try",
+      "body": [
+        "try",
+        "{",
+        "    ${1:/* */}",
+        "}",
+        "catch (const ${2:std::exception}& e)",
+        "{",
+        "    ${3:/* */}",
+        "}"
+      ],
+      "description": "Try-catch."
+    },
+    {
+      "prefix": "unique_ptr",
+      "body": [
+        "auto ${1:p} = std::make_unique<${2:Type}>(${3:args});"
+      ],
+      "description": "std::unique_ptr."
+    },
+    {
+      "prefix": "shared_ptr",
+      "body": [
+        "auto ${1:p} = std::make_shared<${2:Type}>(${3:args});"
+      ],
+      "description": "std::shared_ptr."
+    },
+    {
+      "prefix": "vector",
+      "body": [
+        "std::vector<${1:int}> ${2:v};"
+      ],
+      "description": "std::vector declaration."
+    },
+    {
+      "prefix": "string",
+      "body": [
+        "std::string ${1:s} = ${2:\"text\"};"
+      ],
+      "description": "std::string declaration."
+    },
+    {
+      "prefix": "lambda",
+      "body": [
+        "auto ${1:f} = [${2:capture}](${3:args}) -> ${4:returnType} {",
+        "    ${5:/* body */}",
+        "};"
+      ],
+      "description": "Lambda expression."
+    },
+    {
+      "prefix": "pragma-once",
+      "body": [
+        "#pragma once"
+      ],
+      "description": "Include guard."
+    },
+    {
+      "prefix": "ifdef",
+      "body": [
+        "#ifdef ${1:MACRO}",
+        "${2:/* body */}",
+        "#endif // ${1:MACRO}"
+      ],
+      "description": "Ifdef conditional."
+    }
+  ]
+}

@@ -1,0 +1,196 @@
+{
+  "language": "go",
+  "format": "vscode-snippets-v1",
+  "snippets": [
+    {
+      "prefix": "package",
+      "body": [
+        "package ${1:main}"
+      ],
+      "description": "Package declaration."
+    },
+    {
+      "prefix": "import",
+      "body": [
+        "import (",
+        "    \"${1:fmt}\"",
+        ")"
+      ],
+      "description": "Import block."
+    },
+    {
+      "prefix": "func",
+      "body": [
+        "func ${1:name}(${2:args}) ${3:returnType} {",
+        "    ${4:/* body */}",
+        "}"
+      ],
+      "description": "Function declaration."
+    },
+    {
+      "prefix": "method",
+      "body": [
+        "func (${1:receiver} ${2:*Type}) ${3:method}() ${4:returnType} {",
+        "    ${5:/* */}",
+        "}"
+      ],
+      "description": "Method on a type."
+    },
+    {
+      "prefix": "struct",
+      "body": [
+        "type ${1:Name} struct {",
+        "    ${2:Field} ${3:Type}",
+        "}"
+      ],
+      "description": "Struct declaration."
+    },
+    {
+      "prefix": "interface",
+      "body": [
+        "type ${1:Name} interface {",
+        "    ${2:Method}() ${3:returnType}",
+        "}"
+      ],
+      "description": "Interface declaration."
+    },
+    {
+      "prefix": "if",
+      "body": [
+        "if ${1:condition} {",
+        "    ${2:/* */}",
+        "}"
+      ],
+      "description": "If statement."
+    },
+    {
+      "prefix": "if-else",
+      "body": [
+        "if ${1:condition} {",
+        "    ${2:/* */}",
+        "} else {",
+        "    ${3:/* */}",
+        "}"
+      ],
+      "description": "If-else."
+    },
+    {
+      "prefix": "if-init",
+      "body": [
+        "if ${1:x} := ${2:expr}; ${1:x} != nil {",
+        "    ${3:/* */}",
+        "}"
+      ],
+      "description": "If with init statement."
+    },
+    {
+      "prefix": "for",
+      "body": [
+        "for ${1:i} := 0; ${1:i} < ${2:n}; ${1:i}++ {",
+        "    ${3:/* */}",
+        "}"
+      ],
+      "description": "C-style for loop."
+    },
+    {
+      "prefix": "for-range",
+      "body": [
+        "for ${1:i}, ${2:v} := range ${3:collection} {",
+        "    ${4:/* */}",
+        "}"
+      ],
+      "description": "For range loop."
+    },
+    {
+      "prefix": "switch",
+      "body": [
+        "switch ${1:subject} {",
+        "case ${2:value}:",
+        "    ${3:/* */}",
+        "default:",
+        "    ${4:/* */}",
+        "}"
+      ],
+      "description": "Switch statement."
+    },
+    {
+      "prefix": "select",
+      "body": [
+        "select {",
+        "case ${1:msg} := <-${2:channel}:",
+        "    ${3:/* */}",
+        "}"
+      ],
+      "description": "Select on channels."
+    },
+    {
+      "prefix": "go-func",
+      "body": [
+        "go ${1:func}(${2:args})"
+      ],
+      "description": "Launch a goroutine."
+    },
+    {
+      "prefix": "defer",
+      "body": [
+        "defer ${1:cleanup}()"
+      ],
+      "description": "Defer a function call."
+    },
+    {
+      "prefix": "var",
+      "body": [
+        "var ${1:name} ${2:Type} = ${3:value}"
+      ],
+      "description": "Variable declaration."
+    },
+    {
+      "prefix": "const",
+      "body": [
+        "const ${1:Name} = ${2:value}"
+      ],
+      "description": "Constant declaration."
+    },
+    {
+      "prefix": "type",
+      "body": [
+        "type ${1:Name} ${2:Type}"
+      ],
+      "description": "Type alias."
+    },
+    {
+      "prefix": "make",
+      "body": [
+        "${1:x} := make(${2:[]int}, ${3:0})"
+      ],
+      "description": "Make a slice/map/channel."
+    },
+    {
+      "prefix": "panic",
+      "body": [
+        "panic(${1:\"message\"})"
+      ],
+      "description": "Panic."
+    },
+    {
+      "prefix": "recover",
+      "body": [
+        "if r := recover(); r != nil {",
+        "    ${1:/* handle */}",
+        "}"
+      ],
+      "description": "Recover from panic."
+    },
+    {
+      "prefix": "goroutine-channel",
+      "body": [
+        "ch := make(chan ${1:Type})",
+        "go func() {",
+        "    ch <- ${2:value}",
+        "}()",
+        "val := <-ch"
+      ],
+      "description": "Channel send/receive pattern."
+    }
+  ]
+}

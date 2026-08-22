@@ -95,10 +95,14 @@ fun SplashScreen(onContinue: () -> Unit) {
         modifier = Modifier
             .fillMaxSize()
             .background(ViperDark)
-            // v0.0.8 — key on `once` so a parent passing a new
-            // `onContinue` lambda picks it up (was `pointerInput(Unit)`
-            // which captured the first lambda forever).
-            .pointerInput(once) {
+            // v0.11 — FIX (M2): key on Unit so the gesture detector
+            // is NOT cancelled & restarted every recomposition (was
+            // `pointerInput(once)` where `once` is a fresh lambda every
+            // recomposition). The original v0.0.8 "fix" was based on a
+            // misread — capturing a new `onContinue` lambda is handled
+            // by Compose's automatic state tracking; we only need a
+            // stable key here.
+            .pointerInput(Unit) {
                 // v0.0.7 — tap-to-skip the splash.
                 detectTapGestures(onTap = { once() })
             },

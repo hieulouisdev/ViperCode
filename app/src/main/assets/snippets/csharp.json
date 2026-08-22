@@ -1,0 +1,188 @@
+{
+  "language": "csharp",
+  "format": "vscode-snippets-v1",
+  "snippets": [
+    {
+      "prefix": "class",
+      "body": [
+        "public class ${1:Name}",
+        "{",
+        "    ${2:/* body */}",
+        "}"
+      ],
+      "description": "Class declaration."
+    },
+    {
+      "prefix": "interface",
+      "body": [
+        "public interface ${1:Name}",
+        "{",
+        "    ${2:Method}();",
+        "}"
+      ],
+      "description": "Interface declaration."
+    },
+    {
+      "prefix": "struct",
+      "body": [
+        "public struct ${1:Name}",
+        "{",
+        "    public ${2:Type} ${3:Field};",
+        "}"
+      ],
+      "description": "Struct declaration."
+    },
+    {
+      "prefix": "enum",
+      "body": [
+        "public enum ${1:Name}",
+        "{",
+        "    ${2:Member},",
+        "    ${3:Member2}",
+        "}"
+      ],
+      "description": "Enum declaration."
+    },
+    {
+      "prefix": "method",
+      "body": [
+        "public ${1:void} ${2:Name}(${3:string arg})",
+        "{",
+        "    ${4:/* body */}",
+        "}"
+      ],
+      "description": "Method declaration."
+    },
+    {
+      "prefix": "async-method",
+      "body": [
+        "public async ${1:Task} ${2:Name}()",
+        "{",
+        "    await ${3:Something()};",
+        "}"
+      ],
+      "description": "Async method."
+    },
+    {
+      "prefix": "property",
+      "body": [
+        "public ${1:Type} ${2:Name} { get; set; }"
+      ],
+      "description": "Auto-property."
+    },
+    {
+      "prefix": "ctor",
+      "body": [
+        "public ${1:Name}(${2:string arg})",
+        "{",
+        "    ${3:/* */}",
+        "}"
+      ],
+      "description": "Constructor."
+    },
+    {
+      "prefix": "if",
+      "body": [
+        "if (${1:condition})",
+        "{",
+        "    ${2:/* */}",
+        "}"
+      ],
+      "description": "If statement."
+    },
+    {
+      "prefix": "if-else",
+      "body": [
+        "if (${1:condition})",
+        "{",
+        "    ${2:/* */}",
+        "}",
+        "else",
+        "{",
+        "    ${3:/* */}",
+        "}"
+      ],
+      "description": "If-else."
+    },
+    {
+      "prefix": "for",
+      "body": [
+        "for (int ${1:i} = 0; ${1:i} < ${2:n}; ${1:i}++)",
+        "{",
+        "    ${3:/* */}",
+        "}"
+      ],
+      "description": "For loop."
+    },
+    {
+      "prefix": "foreach",
+      "body": [
+        "foreach (var ${1:item} in ${2:collection})",
+        "{",
+        "    ${3:/* */}",
+        "}"
+      ],
+      "description": "Foreach loop."
+    },
+    {
+      "prefix": "while",
+      "body": [
+        "while (${1:condition})",
+        "{",
+        "    ${2:/* */}",
+        "}"
+      ],
+      "description": "While loop."
+    },
+    {
+      "prefix": "try",
+      "body": [
+        "try",
+        "{",
+        "    ${1:/* */}",
+        "}",
+        "catch (${2:Exception} ex)",
+        "{",
+        "    ${3:/* */}",
+        "}"
+      ],
+      "description": "Try-catch."
+    },
+    {
+      "prefix": "using",
+      "body": [
+        "using (var ${1:resource} = new ${2:Type}())",
+        "{",
+        "    ${3:/* */}",
+        "}"
+      ],
+      "description": "Using statement."
+    },
+    {
+      "prefix": "namespace",
+      "body": [
+        "namespace ${1:Namespace}",
+        "{",
+        "    ${2:/* body */}",
+        "}"
+      ],
+      "description": "Namespace declaration."
+    },
+    {
+      "prefix": "record",
+      "body": [
+        "public record ${1:Name}(${2:Type} ${3:Field});"
+      ],
+      "description": "Record declaration."
+    },
+    {
+      "prefix": "linq",
+      "body": [
+        "var ${1:results} = from ${2:item} in ${3:collection}",
+        "    where ${2:item}.${4:Property} > ${5:0}",
+        "    select ${2:item};"
+      ],
+      "description": "LINQ query expression."
+    }
+  ]
+}

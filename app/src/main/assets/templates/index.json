@@ -1,0 +1,172 @@
+{
+  "format": "vipercode-templates-v1",
+  "templates": [
+    {
+      "name": "kotlin-console-app",
+      "filename": "kotlin-console-app.zip",
+      "size": 1060,
+      "files": [
+        "README.md",
+        "settings.gradle.kts",
+        "build.gradle.kts",
+        "app/src/main/kotlin/Main.kt"
+      ]
+    },
+    {
+      "name": "java-console-app",
+      "filename": "java-console-app.zip",
+      "size": 1032,
+      "files": [
+        "README.md",
+        "settings.gradle.kts",
+        "build.gradle.kts",
+        "app/src/main/java/com/example/Main.java"
+      ]
+    },
+    {
+      "name": "python-console-app",
+      "filename": "python-console-app.zip",
+      "size": 1089,
+      "files": [
+        "README.md",
+        "main.py",
+        "requirements.txt",
+        "pyproject.toml"
+      ]
+    },
+    {
+      "name": "javascript-node-app",
+      "filename": "javascript-node-app.zip",
+      "size": 945,
+      "files": [
+        "README.md",
+        "package.json",
+        "index.js",
+        ".gitignore"
+      ]
+    },
+    {
+      "name": "rust-cli-app",
+      "filename": "rust-cli-app.zip",
+      "size": 781,
+      "files": [
+        "README.md",
+        "Cargo.toml",
+        "src/main.rs",
+        ".gitignore"
+      ]
+    },
+    {
+      "name": "go-cli-app",
+      "filename": "go-cli-app.zip",
+      "size": 579,
+      "files": [
+        "README.md",
+        "go.mod",
+        "main.go"
+      ]
+    },
+    {
+      "name": "csharp-console-app",
+      "filename": "csharp-console-app.zip",
+      "size": 812,
+      "files": [
+        "README.md",
+        "Program.cs",
+        "cli-app.csproj"
+      ]
+    },
+    {
+      "name": "swift-package",
+      "filename": "swift-package.zip",
+      "size": 722,
+      "files": [
+        "README.md",
+        "Package.swift",
+        "Sources/cli-app/main.swift"
+      ]
+    },
+    {
+      "name": "php-web-app",
+      "filename": "php-web-app.zip",
+      "size": 597,
+      "files": [
+        "README.md",
+        "index.php"
+      ]
+    },
+    {
+      "name": "ruby-script",
+      "filename": "ruby-script.zip",
+      "size": 588,
+      "files": [
+        "README.md",
+        "main.rb",
+        "Gemfile"
+      ]
+    },
+    {
+      "name": "html5-starter",
+      "filename": "html5-starter.zip",
+      "size": 1219,
+      "files": [
+        "README.md",
+        "index.html",
+        "styles.css",
+        "script.js"
+      ]
+    },
+    {
+      "name": "react-starter",
+      "filename": "react-starter.zip",
+      "size": 1708,
+      "files": [
+        "README.md",
+        "package.json",
+        "index.html",
+        "src/main.jsx",
+        "src/App.jsx",
+        "vite.config.js"
+      ]
+    },
+    {
+      "name": "vue-starter",
+      "filename": "vue-starter.zip",
+      "size": 1564,
+      "files": [
+        "README.md",
+        "package.json",
+        "index.html",
+        "src/main.js",
+        "src/App.vue",
+        "vite.config.js"
+      ]
+    },
+    {
+      "name": "vite-starter",
+      "filename": "vite-starter.zip",
+      "size": 1301,
+      "files": [
+        "README.md",
+        "package.json",
+        "index.html",
+        "src/main.ts",
+        "tsconfig.json"
+      ]
+    },
+    {
+      "name": "android-jetpack-compose-starter",
+      "filename": "android-jetpack-compose-starter.zip",
+      "size": 3087,
+      "files": [
+        "README.md",
+        "settings.gradle.kts",
+        "build.gradle.kts",
+        "gradle/libs.versions.toml",
+        "app/build.gradle.kts",
+        "app/src/main/AndroidManifest.xml",
+        "app/src/main/java/com/example/composestarter/MainActivity.kt"
+      ]
+    }
+  ]
+}

@@ -183,9 +183,16 @@ fun HomeScreen(
     // The early-return guard `openFolder != null` prevents the effect
     // from re-opening a folder that's already open.
     var folderRestoreToken by remember { mutableIntStateOf(0) }
+    // v0.11 — FIX (H1): every DataStore read on the home screen is now
+    // wrapped in runCatching {} so a corrupted preferences_pb file
+    // (a common side-effect of a previous crash) can no longer crash
+    // the app on launch. Previously an IOException from DataStore
+    // propagated up through the LaunchedEffect and reached the
+    // default UncaughtExceptionHandler → app crash on launch.
     LaunchedEffect(openFolder, folderRestoreToken) {
         if (openFolder != null) return@LaunchedEffect
-        val saved = SettingsRepository.lastFolderUri.first()
+        val saved = runCatching { SettingsRepository.lastFolderUri.first() }
+            .getOrDefault("") ?: ""
         if (saved.isNotBlank()) {
             val restored = runCatching {
                 val uri = Uri.parse(saved)
@@ -212,11 +219,12 @@ fun HomeScreen(
             }.getOrDefault(false)
             if (restored) return@LaunchedEffect
         }
-        if (SettingsRepository.useLocalWorkspace.first()) {
+        if (runCatching { SettingsRepository.useLocalWorkspace.first() }
+                .getOrDefault(true)) {
             val local = FileUtils.localWorkspaceRoot(context)
             val uri = Uri.fromFile(local)
-            SettingsRepository.lastFolderUri.set(uri.toString())
-            repo.openFolder(uri)
+            runCatching { SettingsRepository.lastFolderUri.set(uri.toString()) }
+            runCatching { repo.openFolder(uri) }
             expanded = expanded + uri
             RecentFolders.add(uri)
         }

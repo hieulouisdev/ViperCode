@@ -63,9 +63,14 @@ fun ViperNavHost(
     // v0.0.7 — when an external file is opened via ACTION_VIEW, we
     // now navigate to the EDITOR route (not HOME) so the user
     // immediately sees the just-opened file in the editor.
+    //
+    // v0.11 — FIX (H6): wrap repo.openExternalFile in runCatching so a
+    // SecurityException / IOException / IllegalArgumentException from a
+    // stale URI (e.g. file moved, SAF permission revoked) can no longer
+    // crash the app. We log via Logcat and gracefully fall back to Home.
     LaunchedEffect(externalFileUri) {
         val uri = externalFileUri ?: return@LaunchedEffect
-        val tab = repo.openExternalFile(uri)
+        val tab = runCatching { repo.openExternalFile(uri) }.getOrNull()
         val targetTabId = (tab as? com.vipercode.ide.data.repo.RepoResult.Success)?.value?.id
         if (targetTabId != null) {
             navController.navigate(Routes.EDITOR.replace("{tabId}", targetTabId)) {

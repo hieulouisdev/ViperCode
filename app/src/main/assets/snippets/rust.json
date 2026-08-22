@@ -1,0 +1,195 @@
+{
+  "language": "rust",
+  "format": "vscode-snippets-v1",
+  "snippets": [
+    {
+      "prefix": "fn",
+      "body": [
+        "fn ${1:name}(${2:args}) -> ${3:()} {",
+        "    ${4:/* body */}",
+        "}"
+      ],
+      "description": "Function declaration."
+    },
+    {
+      "prefix": "pub-fn",
+      "body": [
+        "pub fn ${1:name}(${2:args}) -> ${3:()} {",
+        "    ${4:/* body */}",
+        "}"
+      ],
+      "description": "Public function."
+    },
+    {
+      "prefix": "struct",
+      "body": [
+        "struct ${1:Name} {",
+        "    ${2:field}: ${3:Type},",
+        "}"
+      ],
+      "description": "Struct declaration."
+    },
+    {
+      "prefix": "enum",
+      "body": [
+        "enum ${1:Name} {",
+        "    ${2:Variant},",
+        "    ${3:Variant2(${4:Type})},",
+        "}"
+      ],
+      "description": "Enum declaration."
+    },
+    {
+      "prefix": "impl",
+      "body": [
+        "impl ${1:Name} {",
+        "    fn ${2:method}(&self) -> ${3:Type} {",
+        "        ${4:/* */}",
+        "    }",
+        "}"
+      ],
+      "description": "Impl block."
+    },
+    {
+      "prefix": "trait",
+      "body": [
+        "trait ${1:Name} {",
+        "    fn ${2:method}(&self) -> ${3:Type};",
+        "}"
+      ],
+      "description": "Trait declaration."
+    },
+    {
+      "prefix": "impl-trait",
+      "body": [
+        "impl ${1:Trait} for ${2:Type} {",
+        "    fn ${3:method}(&self) -> ${4:Type} {",
+        "        ${5:/* */}",
+        "    }",
+        "}"
+      ],
+      "description": "Implement trait for a type."
+    },
+    {
+      "prefix": "match",
+      "body": [
+        "match ${1:subject} {",
+        "    ${2:Pattern} => ${3:expr},",
+        "    _ => ${4:default},",
+        "}"
+      ],
+      "description": "Match expression."
+    },
+    {
+      "prefix": "if-let",
+      "body": [
+        "if let ${1:Some(${2:x})} = ${3:expr} {",
+        "    ${4:/* */}",
+        "}"
+      ],
+      "description": "If-let pattern match."
+    },
+    {
+      "prefix": "while-let",
+      "body": [
+        "while let ${1:Some(${2:x})} = ${3:expr} {",
+        "    ${4:/* */}",
+        "}"
+      ],
+      "description": "While-let pattern match."
+    },
+    {
+      "prefix": "for",
+      "body": [
+        "for ${1:item} in ${2:iterable} {",
+        "    ${3:/* */}",
+        "}"
+      ],
+      "description": "For-in loop."
+    },
+    {
+      "prefix": "loop",
+      "body": [
+        "loop {",
+        "    ${1:/* body */}",
+        "    if ${2:condition} { break; }",
+        "}"
+      ],
+      "description": "Infinite loop with break."
+    },
+    {
+      "prefix": "vec",
+      "body": [
+        "let ${1:vec}: Vec<${2:Type}> = Vec::new();"
+      ],
+      "description": "Create a Vec."
+    },
+    {
+      "prefix": "string",
+      "body": [
+        "let ${1:s} = String::from(${2:\"text\"});"
+      ],
+      "description": "Create a String."
+    },
+    {
+      "prefix": "print",
+      "body": [
+        "println!(\"{}\", ${1:expr});"
+      ],
+      "description": "println! macro."
+    },
+    {
+      "prefix": "vec-macro",
+      "body": [
+        "let ${1:v} = vec![${2:1, 2, 3}];"
+      ],
+      "description": "vec! macro."
+    },
+    {
+      "prefix": "option",
+      "body": [
+        "let ${1:opt}: Option<${2:Type}> = Some(${3:value});"
+      ],
+      "description": "Option<T>."
+    },
+    {
+      "prefix": "result",
+      "body": [
+        "let ${1:res}: Result<${2:T}, ${3:E}> = Ok(${4:value});"
+      ],
+      "description": "Result<T, E>."
+    },
+    {
+      "prefix": "use",
+      "body": [
+        "use ${1:crate}::${2:module};"
+      ],
+      "description": "Use statement."
+    },
+    {
+      "prefix": "mod",
+      "body": [
+        "mod ${1:name} {",
+        "    ${2:/* body */}",
+        "}"
+      ],
+      "description": "Module declaration."
+    },
+    {
+      "prefix": "async",
+      "body": [
+        "async fn ${1:name}(${2:args}) -> ${3:Type} {",
+        "    ${4:/* */}",
+        "}"
+      ],
+      "description": "Async function."
+    },
+    {
+      "prefix": "await",
+      "body": [
+        "let ${1:result} = ${2:future}.await;"
+      ],
+      "description": "Await a future."
+    }
+  ]
+}

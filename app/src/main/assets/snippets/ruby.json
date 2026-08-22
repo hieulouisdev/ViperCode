@@ -1,0 +1,199 @@
+{
+  "language": "ruby",
+  "format": "vscode-snippets-v1",
+  "snippets": [
+    {
+      "prefix": "def",
+      "body": [
+        "def ${1:name}(${2:args})",
+        "    ${3:/* body */}",
+        "end"
+      ],
+      "description": "Method definition."
+    },
+    {
+      "prefix": "class",
+      "body": [
+        "class ${1:Name}",
+        "    def initialize(${2:args})",
+        "        ${3:/* */}",
+        "    end",
+        "end"
+      ],
+      "description": "Class declaration."
+    },
+    {
+      "prefix": "module",
+      "body": [
+        "module ${1:Name}",
+        "    ${2:/* body */}",
+        "end"
+      ],
+      "description": "Module declaration."
+    },
+    {
+      "prefix": "if",
+      "body": [
+        "if ${1:condition}",
+        "    ${2:/* */}",
+        "end"
+      ],
+      "description": "If statement."
+    },
+    {
+      "prefix": "if-else",
+      "body": [
+        "if ${1:condition}",
+        "    ${2:/* */}",
+        "else",
+        "    ${3:/* */}",
+        "end"
+      ],
+      "description": "If-else."
+    },
+    {
+      "prefix": "unless",
+      "body": [
+        "unless ${1:condition}",
+        "    ${2:/* */}",
+        "end"
+      ],
+      "description": "Unless statement."
+    },
+    {
+      "prefix": "case",
+      "body": [
+        "case ${1:subject}",
+        "when ${2:value}",
+        "    ${3:/* */}",
+        "else",
+        "    ${4:/* */}",
+        "end"
+      ],
+      "description": "Case statement."
+    },
+    {
+      "prefix": "while",
+      "body": [
+        "while ${1:condition}",
+        "    ${2:/* */}",
+        "end"
+      ],
+      "description": "While loop."
+    },
+    {
+      "prefix": "until",
+      "body": [
+        "until ${1:condition}",
+        "    ${2:/* */}",
+        "end"
+      ],
+      "description": "Until loop."
+    },
+    {
+      "prefix": "each",
+      "body": [
+        "${1:collection}.each do |${2:item}|",
+        "    ${3:/* */}",
+        "end"
+      ],
+      "description": "Each loop."
+    },
+    {
+      "prefix": "map",
+      "body": [
+        "${1:collection}.map { |${2:item}| ${3:/* */} }"
+      ],
+      "description": "Map block."
+    },
+    {
+      "prefix": "select",
+      "body": [
+        "${1:collection}.select { |${2:item}| ${3:/* */} }"
+      ],
+      "description": "Select block."
+    },
+    {
+      "prefix": "reduce",
+      "body": [
+        "${1:collection}.reduce(${2:0}) { |${3:acc}, ${4:item}| ${5:/* */} }"
+      ],
+      "description": "Reduce block."
+    },
+    {
+      "prefix": "begin",
+      "body": [
+        "begin",
+        "    ${1:/* */}",
+        "rescue ${2:Exception} => e",
+        "    ${3:/* handle */}",
+        "end"
+      ],
+      "description": "Begin-rescue."
+    },
+    {
+      "prefix": "lambda",
+      "body": [
+        "${1:l} = lambda { |${2:args}| ${3:/* */} }"
+      ],
+      "description": "Lambda."
+    },
+    {
+      "prefix": "proc",
+      "body": [
+        "${1:p} = Proc.new { |${2:args}| ${3:/* */} }"
+      ],
+      "description": "Proc."
+    },
+    {
+      "prefix": "attr-accessor",
+      "body": [
+        "attr_accessor :${1:name}"
+      ],
+      "description": "Attribute accessor."
+    },
+    {
+      "prefix": "attr-reader",
+      "body": [
+        "attr_reader :${1:name}"
+      ],
+      "description": "Attribute reader."
+    },
+    {
+      "prefix": "attr-writer",
+      "body": [
+        "attr_writer :${1:name}"
+      ],
+      "description": "Attribute writer."
+    },
+    {
+      "prefix": "puts",
+      "body": [
+        "puts ${1:\"text\"}"
+      ],
+      "description": "Print with newline."
+    },
+    {
+      "prefix": "pp",
+      "body": [
+        "require \"pp\"",
+        "pp ${1:object}"
+      ],
+      "description": "Pretty-print."
+    },
+    {
+      "prefix": "require",
+      "body": [
+        "require \"${1:module}\""
+      ],
+      "description": "Require a module."
+    },
+    {
+      "prefix": "require-relative",
+      "body": [
+        "require_relative \"${1:file}\""
+      ],
+      "description": "Require a relative file."
+    }
+  ]
+}

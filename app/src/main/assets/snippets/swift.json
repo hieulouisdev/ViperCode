@@ -1,0 +1,182 @@
+{
+  "language": "swift",
+  "format": "vscode-snippets-v1",
+  "snippets": [
+    {
+      "prefix": "func",
+      "body": [
+        "func ${1:name}(${2:args}) -> ${3:Void} {",
+        "    ${4:/* body */}",
+        "}"
+      ],
+      "description": "Function declaration."
+    },
+    {
+      "prefix": "async-func",
+      "body": [
+        "func ${1:name}(${2:args}) async -> ${3:Type} {",
+        "    ${4:await something()}",
+        "}"
+      ],
+      "description": "Async function."
+    },
+    {
+      "prefix": "actor",
+      "body": [
+        "actor ${1:Name} {",
+        "    ${2:/* state */}",
+        "}"
+      ],
+      "description": "Actor declaration."
+    },
+    {
+      "prefix": "struct",
+      "body": [
+        "struct ${1:Name} {",
+        "    ${2:let property}: ${3:Type}",
+        "}"
+      ],
+      "description": "Struct declaration."
+    },
+    {
+      "prefix": "class",
+      "body": [
+        "class ${1:Name}: ${2:Superclass} {",
+        "    ${3:/* body */}",
+        "}"
+      ],
+      "description": "Class declaration."
+    },
+    {
+      "prefix": "enum",
+      "body": [
+        "enum ${1:Name} {",
+        "    case ${2:variant}",
+        "    case ${3:variant2}",
+        "}"
+      ],
+      "description": "Enum declaration."
+    },
+    {
+      "prefix": "protocol",
+      "body": [
+        "protocol ${1:Name} {",
+        "    func ${2:method}()",
+        "}"
+      ],
+      "description": "Protocol declaration."
+    },
+    {
+      "prefix": "extension",
+      "body": [
+        "extension ${1:Type} {",
+        "    ${2:/* body */}",
+        "}"
+      ],
+      "description": "Extension declaration."
+    },
+    {
+      "prefix": "if",
+      "body": [
+        "if ${1:condition} {",
+        "    ${2:/* */}",
+        "}"
+      ],
+      "description": "If statement."
+    },
+    {
+      "prefix": "guard",
+      "body": [
+        "guard ${1:condition} else {",
+        "    ${2:return}",
+        "}"
+      ],
+      "description": "Guard statement."
+    },
+    {
+      "prefix": "if-let",
+      "body": [
+        "if let ${1:value} = ${2:optional} {",
+        "    ${3:/* */}",
+        "}"
+      ],
+      "description": "If-let optional binding."
+    },
+    {
+      "prefix": "guard-let",
+      "body": [
+        "guard let ${1:value} = ${2:optional} else {",
+        "    ${3:return}",
+        "}"
+      ],
+      "description": "Guard-let."
+    },
+    {
+      "prefix": "for",
+      "body": [
+        "for ${1:item} in ${2:collection} {",
+        "    ${3:/* */}",
+        "}"
+      ],
+      "description": "For-in loop."
+    },
+    {
+      "prefix": "while",
+      "body": [
+        "while ${1:condition} {",
+        "    ${2:/* */}",
+        "}"
+      ],
+      "description": "While loop."
+    },
+    {
+      "prefix": "switch",
+      "body": [
+        "switch ${1:subject} {",
+        "case ${2:pattern}:",
+        "    ${3:/* */}",
+        "default:",
+        "    ${4:/* */}",
+        "}"
+      ],
+      "description": "Switch statement."
+    },
+    {
+      "prefix": "do-catch",
+      "body": [
+        "do {",
+        "    ${1:try something()}",
+        "} catch {",
+        "    ${2:/* handle */}",
+        "}"
+      ],
+      "description": "Do-catch."
+    },
+    {
+      "prefix": "property",
+      "body": [
+        "var ${1:name}: ${2:Type} {",
+        "    get { ${3:/* */} }",
+        "    set { ${4:/* */} }",
+        "}"
+      ],
+      "description": "Computed property."
+    },
+    {
+      "prefix": "didset",
+      "body": [
+        "var ${1:name}: ${2:Type} = ${3:initial} {",
+        "    didSet { ${4:/* */} }",
+        "}"
+      ],
+      "description": "Property with observer."
+    },
+    {
+      "prefix": "println",
+      "body": [
+        "print(${1:\"text\"})"
+      ],
+      "description": "Print a line."
+    }
+  ]
+}

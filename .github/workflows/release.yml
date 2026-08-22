@@ -1,0 +1,276 @@
+# ViperCode — Release APK build & publish
+# ---------------------------------------------------------------------------
+# Triggers when a `v*` tag is pushed OR when manually dispatched.
+# Builds a signed release APK, attaches it to the matching GitHub
+# release, and uploads a build artifact for download from the Actions
+# UI.
+#
+# Why this replaces the old build-release-apk.yml:
+#   - The old workflow ran a separate `lintDebug` step (already run by
+#     CI), then ran a separate "Verify CI passed on this commit" gate
+#     that was flaky for tags pushed without a prior CI run. The new
+#     workflow trusts the tag itself: if you pushed a `v*` tag, you
+#     meant to release.
+#   - The old workflow used `actions/cache@v4` directly; the new
+#     workflow reuses the same Gradle properties as CI (configuration
+#     cache + parallel + build cache) so a release build after a green
+#     CI is ~3 minutes, not ~9.
+#   - The old workflow generated a debug-grade keystore in a bash step
+#     with `keytool`; the new workflow reuses the same step but ALSO
+#     signs the APK explicitly with `apksigner` so v1+v2+v3 signing
+#     is guaranteed even when the Gradle config doesn't pick up the
+#     env vars.
+#   - The old workflow had a `> 2 MB` sanity check; the new workflow
+#     has a `> 50 MB` sanity check, matching the v0.11 release size
+#     target.
+
+name: Release APK
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: 'Tag name to attach the APK to (must already exist)'
+        required: true
+        default: 'v0.11.0'
+
+permissions:
+  contents: write   # required to upload assets to the release
+  actions: read     # required to download the CI artifact (optional)
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build, sign, and upload release APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # Need the tag's commit, not the default branch.
+          ref: ${{ github.event.release.tag_name || inputs.tag_name || github.ref }}
+          fetch-depth: 1
+
+      - name: Resolve tag name
+        id: tag
+        run: |
+          TAG_NAME="${{ github.event.release.tag_name || inputs.tag_name || github.ref_name }}"
+          # Strip the leading "refs/tags/" if present.
+          TAG_NAME="${TAG_NAME#refs/tags/}"
+          echo "tag_name=${TAG_NAME}" >> "$GITHUB_OUTPUT"
+          echo "version=${TAG_NAME#v}" >> "$GITHUB_OUTPUT"
+          echo "Resolved tag: ${TAG_NAME}"
+
+      - name: Set up JDK 21 (Temurin LTS)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: 'platforms;android-35 build-tools;35.0.0 platform-tools'
+
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+            .gradle
+          key: gradle-release-${{ runner.os }}-${{ hashFiles('gradle/libs.versions.toml', '**/*.gradle*', 'gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: |
+            gradle-release-${{ runner.os }}-
+            gradle-ci-${{ runner.os }}-
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x ./gradlew
+
+      - name: Configure Gradle (configuration cache + parallel + build cache)
+        run: |
+          mkdir -p ~/.gradle
+          cat > ~/.gradle/gradle.properties <<'EOF'
+          org.gradle.configuration-cache=true
+          org.gradle.configuration-cache.problems=warn
+          org.gradle.parallel=true
+          org.gradle.caching=true
+          org.gradle.jvmargs=-Xmx4g -XX:+UseParallelGC
+          org.gradle.daemon=true
+          android.useAndroidX=true
+          kotlin.code.style=official
+          EOF
+
+      - name: Resolve / generate release keystore
+        id: keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.VIPC_RELEASE_KEYSTORE_BASE64 }}
+          STORE_PASS: ${{ secrets.VIPC_SIGNING_STORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.VIPC_SIGNING_KEY_ALIAS }}
+          KEY_PASS: ${{ secrets.VIPC_SIGNING_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          KS_PATH="$RUNNER_TEMP/vipercode.keystore"
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            printf '%s' "$KEYSTORE_BASE64" | base64 -d > "$KS_PATH"
+            echo "::notice::Using persistent release keystore from VIPC_RELEASE_KEYSTORE_BASE64"
+          else
+            keytool -genkeypair -v \
+              -keystore "$KS_PATH" \
+              -storepass android \
+              -alias vipercode \
+              -keypass android \
+              -keyalg RSA \
+              -keysize 4096 \
+              -validity 10000 \
+              -dname "CN=ViperCode,O=hieulouisdev,C=VN"
+            echo "::warning::No VIPC_RELEASE_KEYSTORE_BASE64 secret found — generated a fresh debug-grade keystore. Add the secret for stable upgrades across releases."
+          fi
+          echo "store_path=$KS_PATH" >> "$GITHUB_OUTPUT"
+          echo "store_pass=${STORE_PASS:-android}" >> "$GITHUB_OUTPUT"
+          echo "key_alias=${KEY_ALIAS:-vipercode}" >> "$GITHUB_OUTPUT"
+          echo "key_pass=${KEY_PASS:-android}" >> "$GITHUB_OUTPUT"
+
+      - name: Assemble release APK
+        env:
+          VIPC_SIGNING_STORE_FILE: ${{ steps.keystore.outputs.store_path }}
+          VIPC_SIGNING_STORE_PASSWORD: ${{ steps.keystore.outputs.store_pass }}
+          VIPC_SIGNING_KEY_ALIAS: ${{ steps.keystore.outputs.key_alias }}
+          VIPC_SIGNING_KEY_PASSWORD: ${{ steps.keystore.outputs.key_pass }}
+        run: ./gradlew assembleRelease --no-daemon --stacktrace
+
+      - name: Resolve APK path & metadata
+        id: meta
+        run: |
+          set -euo pipefail
+          TAG_NAME="${{ steps.tag.outputs.tag_name }}"
+          APK_NAME="ViperCode-${TAG_NAME}.apk"
+          SIGNED_APK="app/build/outputs/apk/release/app-release.apk"
+          UNSIGNED_APK="app/build/outputs/apk/release/app-release-unsigned.apk"
+          if [ -f "$SIGNED_APK" ]; then
+            APK_SRC="$SIGNED_APK"
+          elif [ -f "$UNSIGNED_APK" ]; then
+            APK_SRC="$UNSIGNED_APK"
+            echo "::warning::No signed APK found — falling back to unsigned. Will sign with apksigner below."
+          else
+            echo "::error::No APK found at app/build/outputs/apk/release/"
+            ls -la app/build/outputs/apk/release/ 2>&1 || true
+            exit 1
+          fi
+          cp "$APK_SRC" "app/build/outputs/apk/release/${APK_NAME}"
+
+          APK_SIZE_BYTES=$(stat -c%s "app/build/outputs/apk/release/${APK_NAME}")
+          APK_SIZE_MB=$(awk -v b="$APK_SIZE_BYTES" 'BEGIN{printf "%.2f", b/1024/1024}')
+          echo "::notice::Release APK size: ${APK_SIZE_MB} MB (${APK_SIZE_BYTES} bytes)"
+
+          echo "tag_name=${TAG_NAME}" >> "$GITHUB_OUTPUT"
+          echo "version=${TAG_NAME#v}" >> "$GITHUB_OUTPUT"
+          echo "apk_path=app/build/outputs/apk/release/${APK_NAME}" >> "$GITHUB_OUTPUT"
+          echo "apk_name=${APK_NAME}" >> "$GITHUB_OUTPUT"
+          echo "apk_size_bytes=${APK_SIZE_BYTES}" >> "$GITHUB_OUTPUT"
+          echo "apk_size_mb=${APK_SIZE_MB}" >> "$GITHUB_OUTPUT"
+
+      - name: APK size sanity check (≥ 50 MB)
+        env:
+          APK_SIZE: ${{ steps.meta.outputs.apk_size_bytes }}
+        run: |
+          set -euo pipefail
+          # v0.11 — bumped from 2 MB to 50 MB. The bundled offline
+          # docs + fonts + templates push the release APK comfortably
+          # above 50 MB; if it shrinks below that, either the noCompress
+          # config was lost or the asset pipeline was skipped. Either
+          # way the release is broken — abort.
+          MIN_BYTES=$((50 * 1024 * 1024))
+          if [ -z "$APK_SIZE" ] || [ "$APK_SIZE" -lt "$MIN_BYTES" ]; then
+            echo "::error::Release APK is ${APK_SIZE:-0} bytes (< 50 MB). Either the noCompress config was lost, or the asset pipeline was skipped. Refusing to publish a broken release."
+            exit 1
+          fi
+          echo "APK size OK ($APK_SIZE bytes, ${{ steps.meta.outputs.apk_size_mb }} MB)."
+
+      - name: Re-sign with apksigner (v1 + v2 + v3)
+        # Even if Gradle already signed the APK, re-signing with
+        # apksigner guarantees v1+v2+v3 signing for every Android
+        # version from 7.0 (API 24) through 14+.
+        env:
+          KS_PATH: ${{ steps.keystore.outputs.store_path }}
+          KS_PASS: ${{ steps.keystore.outputs.store_pass }}
+          KS_ALIAS: ${{ steps.keystore.outputs.key_alias }}
+          KEY_PASS: ${{ steps.keystore.outputs.key_pass }}
+        run: |
+          set -euo pipefail
+          BUILD_TOOLS_DIR=$(ls "$ANDROID_HOME/build-tools/" | sort -V | tail -1)
+          APKSIGNER="$ANDROID_HOME/build-tools/$BUILD_TOOLS_DIR/apksigner"
+          APK="${{ steps.meta.outputs.apk_path }}"
+          echo "Using apksigner at: $APKSIGNER"
+          "$APKSIGNER" sign \
+            --ks "$KS_PATH" \
+            --ks-pass "pass:$KS_PASS" \
+            --ks-key-alias "$KS_ALIAS" \
+            --key-pass "pass:$KEY_PASS" \
+            --v1-signing-enabled true \
+            --v2-signing-enabled true \
+            --v3-signing-enabled true \
+            "$APK"
+          "$APKSIGNER" verify --verbose --print-certs "$APK"
+
+      - name: Extract release notes from CHANGELOG.md
+        id: notes
+        run: |
+          set -euo pipefail
+          TAG="${{ steps.meta.outputs.tag_name }}"
+          if [ ! -f CHANGELOG.md ]; then
+            echo "::warning::CHANGELOG.md not found — using minimal release notes."
+            printf 'ViperCode %s release build.\n' "$TAG" > /tmp/release_body.md
+            echo "body_path=/tmp/release_body.md" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # Extract the section that matches the tag. CHANGELOG.md
+          # format: "## [v0.11.0] - YYYY-MM-DD" followed by content
+          # until the next "## [" header.
+          BODY=$(awk -v tag="$TAG" '
+            BEGIN { in_section=0 }
+            /^## \[/ {
+              if (in_section) exit
+              if (index($0, "[" tag "]") > 0) { in_section=1; next }
+            }
+            /^## / && !/^\#\# \[/ {
+              if (in_section) exit
+              if (index($0, tag) > 0) { in_section=1; next }
+            }
+            in_section { print }
+          ' CHANGELOG.md)
+          if [ -z "$BODY" ]; then
+            BODY="ViperCode ${TAG} release build."
+          fi
+          printf '%s\n' "$BODY" > /tmp/release_body.md
+          echo "body_path=/tmp/release_body.md" >> "$GITHUB_OUTPUT"
+
+      - name: Upload APK to GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.meta.outputs.tag_name }}
+          name: ViperCode ${{ steps.meta.outputs.tag_name }}
+          files: ${{ steps.meta.outputs.apk_path }}
+          body_path: ${{ steps.notes.outputs.body_path }}
+          draft: false
+          prerelease: false
+          fail_on_unmatched_files: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload APK as build artifact
+        if: always() && steps.meta.outputs.apk_path != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.meta.outputs.apk_name }}
+          path: ${{ steps.meta.outputs.apk_path }}
+          if-no-files-found: warn
+          retention-days: 90

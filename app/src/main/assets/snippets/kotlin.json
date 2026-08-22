@@ -1,0 +1,181 @@
+{
+  "language": "kotlin",
+  "format": "vscode-snippets-v1",
+  "snippets": [
+    {
+      "prefix": "main",
+      "body": [
+        "fun main() {",
+        "    println(\"Hello, World!\")",
+        "}"
+      ],
+      "description": "Kotlin main entry point."
+    },
+    {
+      "prefix": "function",
+      "body": [
+        "fun ${1:name}(${2:args}): ${3:Unit} {",
+        "    ${4:/* body */}",
+        "}"
+      ],
+      "description": "Top-level function."
+    },
+    {
+      "prefix": "class",
+      "body": [
+        "class ${1:Name}(${2:args}) {",
+        "    ${3:/* body */}",
+        "}"
+      ],
+      "description": "Primary constructor class."
+    },
+    {
+      "prefix": "data class",
+      "body": [
+        "data class ${1:Name}(",
+        "    val ${2:field}: ${3:String},",
+        ")"
+      ],
+      "description": "Data class with one field."
+    },
+    {
+      "prefix": "if",
+      "body": [
+        "if (${1:condition}) {",
+        "    ${2:/* then */}",
+        "} else {",
+        "    ${3:/* else */}",
+        "}"
+      ],
+      "description": "If-else statement."
+    },
+    {
+      "prefix": "when",
+      "body": [
+        "when (${1:subject}) {",
+        "    ${2:value1} -> ${3:/* */}",
+        "    ${4:value2} -> ${5:/* */}",
+        "    else -> ${6:/* default */}",
+        "}"
+      ],
+      "description": "When expression (Kotlin's switch)."
+    },
+    {
+      "prefix": "for",
+      "body": [
+        "for (${1:item} in ${2:collection}) {",
+        "    ${3:/* body */}",
+        "}"
+      ],
+      "description": "For-each loop."
+    },
+    {
+      "prefix": "while",
+      "body": [
+        "while (${1:condition}) {",
+        "    ${2:/* body */}",
+        "}"
+      ],
+      "description": "While loop."
+    },
+    {
+      "prefix": "try",
+      "body": [
+        "try {",
+        "    ${1:/* body */}",
+        "} catch (e: ${2:Exception}) {",
+        "    ${3:/* handle */}",
+        "}"
+      ],
+      "description": "Try-catch."
+    },
+    {
+      "prefix": "print",
+      "body": [
+        "println(${1:\"text\"})"
+      ],
+      "description": "Print a line."
+    },
+    {
+      "prefix": "val",
+      "body": [
+        "val ${1:name}: ${2:String} = ${3:value}"
+      ],
+      "description": "Immutable variable declaration."
+    },
+    {
+      "prefix": "var",
+      "body": [
+        "var ${1:name}: ${2:String} = ${3:value}"
+      ],
+      "description": "Mutable variable declaration."
+    },
+    {
+      "prefix": "list",
+      "body": [
+        "val ${1:list}: List<${2:String}> = listOf(${3:\"a\", \"b\", \"c\"})"
+      ],
+      "description": "Immutable list."
+    },
+    {
+      "prefix": "map",
+      "body": [
+        "val ${1:map}: Map<String, ${2:Int}> = mapOf(",
+        "    ${3:\"one\" to 1, \"two\" to 2}",
+        ")"
+      ],
+      "description": "Immutable map."
+    },
+    {
+      "prefix": "set",
+      "body": [
+        "val ${1:set}: Set<${2:String}> = setOf(${3:\"a\", \"b\", \"c\"})"
+      ],
+      "description": "Immutable set."
+    },
+    {
+      "prefix": "when-bool",
+      "body": [
+        "when (${1:flag}) {",
+        "    true -> ${2:/* yes */}",
+        "    false -> ${3:/* no */}",
+        "}"
+      ],
+      "description": "When on a boolean."
+    },
+    {
+      "prefix": "interface",
+      "body": [
+        "interface ${1:Name} {",
+        "    fun ${2:method}(): ${3:Unit}",
+        "}"
+      ],
+      "description": "Interface declaration."
+    },
+    {
+      "prefix": "object",
+      "body": [
+        "object ${1:Name} {",
+        "    ${2:/* body */}",
+        "}"
+      ],
+      "description": "Singleton object."
+    },
+    {
+      "prefix": "companion",
+      "body": [
+        "companion object {",
+        "    const val ${1:NAME} = ${2:\"value\"}",
+        "}"
+      ],
+      "description": "Companion object with a constant."
+    },
+    {
+      "prefix": "lambda",
+      "body": [
+        "val ${1:f}: (${2:Int}) -> ${3:Int} = { ${4:x} -> ${5:x + 1} }"
+      ],
+      "description": "Lambda assigned to a val."
+    }
+  ]
+}

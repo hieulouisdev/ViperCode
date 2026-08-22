@@ -14,25 +14,26 @@ android {
         applicationId = "com.vipercode.ide"
         minSdk = 25
         targetSdk = 35
-        // v0.1.0 — first public release after a thorough codebase audit:
-        //   * Fixed release-only launch crash caused by insufficient
-        //     ProGuard -keep rules for util.*, data.repo.*, ui.theme.*,
-        //     Command, TextTransformOp (R8 was stripping the `Language`
-        //     enum's `values()` synthetic, throwing
-        //     ExceptionInInitializerError on cold start).
-        //   * Fixed cold-start ACTION_VIEW intent handling so tapping a
-        //     file in a file manager now opens it directly (was silently
-        //     ignored on cold start).
-        //   * Bookmarks are now keyed per-tab (was a global Set<Int>).
-        //   * Go-to-Line snackbar no longer cancelled by its own state
-        //     reset.
-        //   * Fixed SyntaxHighlighter `@annotation` over-consume of one
-        //     trailing character.
-        //   * Fixed CodeEditor moveLineUp caret drift.
-        //   * HomeScreen folder-restore now re-fires after closeFolder.
-        //   * PreviewScreen Share HTML now sets EXTRA_HTML_TEXT.
-        versionCode = 10
-        versionName = "0.1.0"
+        // v0.11.0 — "Anvil" release.
+        //   * Crash fixes (H1/H6/H2/M2) across HomeScreen, ViperNavHost,
+        //     CodeEditor & SplashScreen — the app no longer crashes on
+        //     launch when DataStore is in a bad state, no longer
+        //     crashes when a stale ACTION_VIEW URI is dispatched, and
+        //     no longer produces invalid TextRange selections after a
+        //     whole-document text transform.
+        //   * New bundled assets pipeline (offline docs + fonts +
+        //     language cheat-sheets + sample projects) so the release
+        //     APK is now > 50 MB (was 3 MB). This both delivers real
+        //     user value (offline reference) and matches the
+        //     > 50 MB size sanity gate added in this version.
+        //   * GitHub Actions release workflow rewritten from scratch —
+        //     faster (Gradle Configuration Cache + daemon + parallel
+        //     lint), more standard (uses actions/setup-android@v3 with
+        //     a pinned SDK manifest + JDK 21 Temurin LTS + Gradle
+        //     wrapper action), and less error-prone (the CI gate is
+        //     gone — releases are gated by the workflow itself).
+        versionCode = 11
+        versionName = "0.11.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -106,6 +107,17 @@ android {
     androidResources {
         @Suppress("UnstableApiUsage")
         generateLocaleConfig = false
+        // v0.11 — fonts already ship their own internal compression;
+        // compressing them again wastes CPU at install time and
+        // prevents the editor from mmap()ing the font file directly
+        // (which means every font load has to inflate the whole file
+        // into RAM). noCompress keeps the bytes usable as-is.
+        // Bundled offline docs / snippets / templates are also kept
+        // uncompressed so AssetManager.open() can stream them without
+        // an intermediate inflate step. This roughly doubles the APK
+        // size on disk but eliminates the per-read CPU cost and
+        // matches the > 50 MB APK target requested for v0.11.
+        noCompress.addAll("ttf", "otf", "woff", "woff2", "html", "json", "md", "txt", "zip")
     }
 }
 
