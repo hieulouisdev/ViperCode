@@ -26,6 +26,8 @@ import androidx.compose.material.icons.filled.Comment
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.ChevronLeft
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Save
@@ -799,7 +801,7 @@ private fun SearchReplaceBar(
                 },
                 enabled = matches.isNotEmpty(),
             ) {
-                Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = s.editorPreviousMatch)
+                Icon(Icons.Filled.ChevronLeft, contentDescription = s.editorPreviousMatch)
             }
             IconButton(
                 onClick = {
@@ -808,7 +810,7 @@ private fun SearchReplaceBar(
                 },
                 enabled = matches.isNotEmpty(),
             ) {
-                Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = s.editorNextMatch)
+                Icon(Icons.Filled.ChevronRight, contentDescription = s.editorNextMatch)
             }
             Text(
                 text = if (matches.isEmpty()) "0 / 0" else "${currentMatchIndex + 1} / $totalMatches",

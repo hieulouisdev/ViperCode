@@ -93,7 +93,9 @@ object Strings {
         val dialogSearchInFilesTitle: String,
         val dialogSearchInFilesHint: String,
         // v0.0.8 — new strings for the command palette + line ops
-        // + autocomplete + settings toggles.
+        // + autocomplete. (Existing settings strings like
+        // settingsLineNumbers / settingsWordWrap / settingsAutoIndent /
+        // settingsAutoCloseBrackets are reused — not redeclared here.)
         val dialogCommandPaletteTitle: String,
         val dialogCommandPaletteHint: String,
         val editorMoveLineUp: String,
@@ -103,10 +105,6 @@ object Strings {
         val editorCommandPalette: String,
         val editorAutocompleteEnabled: String,
         val settingsAutocomplete: String,
-        val settingsLineNumbers: String,
-        val settingsWordWrap: String,
-        val settingsAutoIndent: String,
-        val settingsAutoCloseBrackets: String,
         // Editor
         val editorEmpty: String,
         val editorSave: String,
@@ -333,10 +331,6 @@ object Strings {
         editorCommandPalette = "Command palette",
         editorAutocompleteEnabled = "Autocomplete",
         settingsAutocomplete = "Code autocomplete",
-        settingsLineNumbers = "Show line numbers",
-        settingsWordWrap = "Word wrap",
-        settingsAutoIndent = "Auto-indent",
-        settingsAutoCloseBrackets = "Auto-close brackets",
         editorEmpty = "Open or create a file to start editing",
         editorSave = "Save",
         editorSaved = "Saved",
@@ -557,10 +551,6 @@ object Strings {
         editorCommandPalette = "Bảng lệnh",
         editorAutocompleteEnabled = "Gợi ý mã",
         settingsAutocomplete = "Gợi ý mã tự động",
-        settingsLineNumbers = "Hiện số dòng",
-        settingsWordWrap = "Ngắt dòng",
-        settingsAutoIndent = "Tự động thụt lề",
-        settingsAutoCloseBrackets = "Tự đóng ngoặc",
         editorEmpty = "Mở hoặc tạo tệp để bắt đầu soạn thảo",
         editorSave = "Lưu",
         editorSaved = "Đã lưu",
