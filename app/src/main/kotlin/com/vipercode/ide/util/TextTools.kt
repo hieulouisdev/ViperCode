@@ -24,10 +24,12 @@ object TextTools {
         val trimmed = input.trim()
         if (trimmed.isEmpty()) return ""
         return try {
-            val reader = java.io.StringReader(trimmed)
-            val parser = org.json.JSONTokener(reader)
-            val value = parser.nextValue()
-            value.toString(indent)
+            val value = org.json.JSONTokener(trimmed).nextValue()
+            when (value) {
+                is org.json.JSONObject -> value.toString(indent)
+                is org.json.JSONArray -> value.toString(indent)
+                else -> value.toString()
+            }
         } catch (e: Throwable) {
             "// Invalid JSON: ${e.message}\n$input"
         }
@@ -38,8 +40,7 @@ object TextTools {
         val trimmed = input.trim()
         if (trimmed.isEmpty()) return ""
         return try {
-            val parser = org.json.JSONTokener(java.io.StringReader(trimmed))
-            val value = parser.nextValue()
+            val value = org.json.JSONTokener(trimmed).nextValue()
             value.toString()
         } catch (e: Throwable) {
             input
@@ -48,7 +49,7 @@ object TextTools {
 
     /** Returns true if [input] is parseable as JSON. */
     fun isValidJson(input: String): Boolean = try {
-        org.json.JSONTokener(java.io.StringReader(input.trim())).nextValue()
+        org.json.JSONTokener(input.trim()).nextValue()
         true
     } catch (e: Throwable) {
         false
@@ -199,15 +200,17 @@ object TextTools {
      * Returns a triple of decoded (header, payload, signature) for
      * the given JWT. On failure returns three empty strings.
      */
-    fun decodeJwt(token: String): Triple<String, String, String> = try {
-        val parts = token.trim().split(".")
-        if (parts.size < 2) return Triple("", "", "")
-        val header = decodeBase64Url(parts[0])
-        val payload = decodeBase64Url(parts[1])
-        val sig = if (parts.size > 2) parts[2] else ""
-        Triple(header, payload, sig)
-    } catch (e: Throwable) {
-        Triple("", "", "")
+    fun decodeJwt(token: String): Triple<String, String, String> {
+        return try {
+            val parts = token.trim().split(".")
+            if (parts.size < 2) return Triple("", "", "")
+            val header = decodeBase64Url(parts[0])
+            val payload = decodeBase64Url(parts[1])
+            val sig = if (parts.size > 2) parts[2] else ""
+            Triple(header, payload, sig)
+        } catch (e: Throwable) {
+            Triple("", "", "")
+        }
     }
 
     private fun decodeBase64Url(input: String): String {
