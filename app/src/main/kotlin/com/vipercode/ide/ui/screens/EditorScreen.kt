@@ -195,9 +195,10 @@ fun EditorScreen(
     // v0.1.0 — FIX: bookmarks now live in a Map keyed by tab.id so
     // switching tabs shows the correct tab's bookmarks (was a single
     // Set<Int> shared across all tabs, so switching tabs leaked the
-    // previous tab's bookmarks into the new tab).
+    // previous tab's bookmarks into the new tab). `activeBookmarks`
+    // is computed below, AFTER `activeTab` is declared (forward
+    // references are illegal in Kotlin local scopes).
     var bookmarks by remember { mutableStateOf<Map<String, Set<Int>>>(emptyMap()) }
-    val activeBookmarks = activeTab?.let { bookmarks[it.id] ?: emptySet() } ?: emptySet()
     var bookmarkToggleToken by remember { mutableIntStateOf(0) }
     var gotoNextBookmarkToken by remember { mutableIntStateOf(0) }
     var gotoPrevBookmarkToken by remember { mutableIntStateOf(0) }
@@ -212,6 +213,8 @@ fun EditorScreen(
             tabs.firstOrNull { it.id == target }
         }
     }
+    // v0.1.0 — derived: the bookmarks of the currently active tab.
+    val activeBookmarks = activeTab?.let { bookmarks[it.id] ?: emptySet<Int>() } ?: emptySet()
     val isHtmlTab = activeTab?.language == Language.HTML
     val isMarkdownTab = activeTab?.language == Language.MARKDOWN
 
