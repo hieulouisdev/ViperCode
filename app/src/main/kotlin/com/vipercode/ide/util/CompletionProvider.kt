@@ -864,235 +864,235 @@ object CompletionProvider {
 
     // ── v0.0.9 — new language snippet tables ──────────────────────
     private val DOCKERFILE_SNIPPETS = listOf(
-        Snippet("FROM", "FROM ${'${'}1:alpine}${'}'}
+        Snippet("FROM", "FROM ${'$'}{1:alpine}
 ", "base image"),
-        Snippet("RUN", "RUN ${'${'}1:cmd}${'}'}
+        Snippet("RUN", "RUN ${'$'}{1:cmd}
 ", "run command"),
-        Snippet("COPY", "COPY ${'${'}1:src}${'}'} ${'${'}2:dest}${'}'}
+        Snippet("COPY", "COPY ${'$'}{1:src} ${'$'}{2:dest}
 ", "copy file"),
-        Snippet("WORKDIR", "WORKDIR ${'${'}1:/app}${'}'}
+        Snippet("WORKDIR", "WORKDIR ${'$'}{1:/app}
 ", "set workdir"),
-        Snippet("EXPOSE", "EXPOSE ${'${'}1:8080}${'}'}
+        Snippet("EXPOSE", "EXPOSE ${'$'}{1:8080}
 ", "expose port"),
-        Snippet("CMD", "CMD ["${'${'}1:cmd}${'}'}"]
+        Snippet("CMD", "CMD [\"${'$'}{1:cmd}\"]
 ", "default command"),
-        Snippet("ENTRYPOINT", "ENTRYPOINT ["${'${'}1:cmd}${'}'}"]
+        Snippet("ENTRYPOINT", "ENTRYPOINT [\"${'$'}{1:cmd}\"]
 ", "entrypoint"),
-        Snippet("ENV", "ENV ${'${'}1:KEY}${'}'}=${'${'}2:value}${'}'}
+        Snippet("ENV", "ENV ${'$'}{1:KEY}=${'$'}{2:value}
 ", "env var"),
-        Snippet("ARG", "ARG ${'${'}1:NAME}${'}'}=${'${'}2:default}${'}'}
+        Snippet("ARG", "ARG ${'$'}{1:NAME}=${'$'}{2:default}
 ", "build arg"),
     )
     private val MAKEFILE_SNIPPETS = listOf(
-        Snippet("target", "${'${'}1:target${'}'}:
-	${'${'}2:cmd}${'}'}
+        Snippet("target", "${'$'}{1:target}:
+        ${'$'}{2:cmd}
 ", "make target"),
-        Snippet("var", "${'${'}1:VAR${'}'}=${'${'}2:value${'}'}
+        Snippet("var", "${'$'}{1:VAR}=${'$'}{2:value}
 ", "variable"),
-        Snippet("ifeq", "ifeq (${'${'}1:X${'}'}, ${'${'}2:Y${'}'}})
-	
+        Snippet("ifeq", "ifeq (${'$'}{1:X}, ${'$'}{2:Y})
+        
 else
-	
+        
 endif
 ", "if equal"),
-        Snippet("foreach", "$(foreach ${'${'}1:var${'}'}},${'${'}2:list${'}'}},${'${'}3:expr${'}'})
+        Snippet("foreach", "$(foreach ${'$'}{1:var},${'$'}{2:list},${'$'}{3:expr})
 ", "foreach"),
     )
     private val R_SNIPPETS = listOf(
-        Snippet("function", "${'${'}1:name${'}'} <- function(${'${'}2:args${'}'}) {
-    ${'${'}3:body${'}'}
+        Snippet("function", "${'$'}{1:name} <- function(${'$'}{2:args}) {
+    ${'$'}{3:body}
 }
 ", "function"),
-        Snippet("if", "if (${'${'}1:cond${'}'}) {
-    ${'${'}2:body${'}'}
+        Snippet("if", "if (${'$'}{1:cond}) {
+    ${'$'}{2:body}
 }
 ", "if statement"),
-        Snippet("for", "for (${'${'}1:var${'}'} in ${'${'}2:iter${'}'}) {
-    ${'${'}3:body${'}'}
+        Snippet("for", "for (${'$'}{1:var} in ${'$'}{2:iter}) {
+    ${'$'}{3:body}
 }
 ", "for loop"),
-        Snippet("library", "library(${'${'}1:pkg${'}'})
+        Snippet("library", "library(${'$'}{1:pkg})
 ", "load library"),
     )
     private val HASKELL_SNIPPETS = listOf(
-        Snippet("module", "module ${'${'}1:Name${'}'} where
+        Snippet("module", "module ${'$'}{1:Name} where
 
 ", "module"),
-        Snippet("func", "${'${'}1:name${'}'} :: ${'${'}2:Type${'}'}
-${'${'}1:name${'}'} ${'${'}3:args${'}'}} = ${'${'}4:body${'}'}
+        Snippet("func", "${'$'}{1:name} :: ${'$'}{2:Type}
+${'$'}{1:name} ${'$'}{3:args} = ${'$'}{4:body}
 ", "function with type"),
-        Snippet("data", "data ${'${'}1:Name${'}'} = ${'${'}2:Constructor${'}'}
+        Snippet("data", "data ${'$'}{1:Name} = ${'$'}{2:Constructor}
 ", "data type"),
-        Snippet("class", "class ${'${'}1:Name${'}'} ${'${'}2:a${'}'}} where
-    ${'${'}3:method${'}'}}
+        Snippet("class", "class ${'$'}{1:Name} ${'$'}{2:a} where
+    ${'$'}{3:method}
 ", "type class"),
         Snippet("do", "do
-    ${'${'}1:body${'}'}
+    ${'$'}{1:body}
 ", "do block"),
     )
     private val ELIXIR_SNIPPETS = listOf(
-        Snippet("def", "def ${'${'}1:name${'}'}(${'${'}2:args${'}'}}) do
-    ${'${'}3:body${'}'}
+        Snippet("def", "def ${'$'}{1:name}(${'$'}{2:args}) do
+    ${'$'}{3:body}
 end
 ", "public function"),
-        Snippet("defp", "defp ${'${'}1:name${'}'}(${'${'}2:args${'}'}}) do
-    ${'${'}3:body${'}'}
+        Snippet("defp", "defp ${'$'}{1:name}(${'$'}{2:args}) do
+    ${'$'}{3:body}
 end
 ", "private function"),
-        Snippet("defmodule", "defmodule ${'${'}1:Name${'}'}} do
-    ${'${'}2:body${'}'}
+        Snippet("defmodule", "defmodule ${'$'}{1:Name} do
+    ${'$'}{2:body}
 end
 ", "module"),
-        Snippet("defstruct", "defstruct ${'${'}1:fields${'}'}
+        Snippet("defstruct", "defstruct ${'$'}{1:fields}
 ", "struct"),
-        Snippet("case", "case ${'${'}1:value${'}'}} do
-    ${'${'}2:pattern${'}'}} -> ${'${'}3:result${'}'}
+        Snippet("case", "case ${'$'}{1:value} do
+    ${'$'}{2:pattern} -> ${'$'}{3:result}
 end
 ", "case"),
     )
     private val ERLANG_SNIPPETS = listOf(
-        Snippet("module", "-module(${'${'}1:name${'}'}}).
+        Snippet("module", "-module(${'$'}{1:name}).
 ", "module declaration"),
-        Snippet("export", "-export([${'${'}1:funcs${'}'}}]).
+        Snippet("export", "-export([${'$'}{1:funcs}]).
 ", "export"),
-        Snippet("function", "${'${'}1:name${'}'}(${'${'}2:args${'}'}}) ->
-    ${'${'}3:body${'}'}.
+        Snippet("function", "${'$'}{1:name}(${'$'}{2:args}) ->
+    ${'$'}{3:body}.
 ", "function"),
-        Snippet("case", "case ${'${'}1:expr${'}'}} of
-    ${'${'}2:pattern${'}'}} -> ${'${'}3:body${'}'}
+        Snippet("case", "case ${'$'}{1:expr} of
+    ${'$'}{2:pattern} -> ${'$'}{3:body}
 end.
 ", "case"),
     )
     private val CLOJURE_SNIPPETS = listOf(
-        Snippet("defn", "(defn ${'${'}1:name${'}'}} [${'${'}2:args${'}'}}]
-  ${'${'}3:body${'}'}})
+        Snippet("defn", "(defn ${'$'}{1:name} [${'$'}{2:args}]
+  ${'$'}{3:body})
 ", "function"),
-        Snippet("def", "(def ${'${'}1:name${'}'}} ${'${'}2:value${'}'}})
+        Snippet("def", "(def ${'$'}{1:name} ${'$'}{2:value})
 ", "definition"),
-        Snippet("let", "(let [${'${'}1:binding${'}'}} ${'${'}2:value${'}'}}]
-  ${'${'}3:body${'}'}})
+        Snippet("let", "(let [${'$'}{1:binding} ${'$'}{2:value}]
+  ${'$'}{3:body})
 ", "let binding"),
-        Snippet("if", "(if ${'${'}1:cond${'}'}}
-  ${'${'}2:then${'}'}}
-  ${'${'}3:else${'}'}})
+        Snippet("if", "(if ${'$'}{1:cond}
+  ${'$'}{2:then}
+  ${'$'}{3:else})
 ", "if"),
-        Snippet("fn", "(fn [${'${'}1:args${'}'}}] ${'${'}2:body${'}'}})
+        Snippet("fn", "(fn [${'$'}{1:args}] ${'$'}{2:body})
 ", "anonymous fn"),
     )
     private val SOLIDITY_SNIPPETS = listOf(
-        Snippet("contract", "contract ${'${'}1:Name${'}'}} {
-    ${'${'}2:body${'}'}}
+        Snippet("contract", "contract ${'$'}{1:Name} {
+    ${'$'}{2:body}
 }
 ", "contract"),
-        Snippet("function", "function ${'${'}1:name${'}'}}(${'${'}2:args${'}'}}) public ${'${'}3:returns${'}'}} {
-    ${'${'}4:body${'}'}}
+        Snippet("function", "function ${'$'}{1:name}(${'$'}{2:args}) public ${'$'}{3:returns} {
+    ${'$'}{4:body}
 }
 ", "function"),
-        Snippet("event", "event ${'${'}1:Name${'}'}}(${'${'}2:args${'}'}});
+        Snippet("event", "event ${'$'}{1:Name}(${'$'}{2:args});
 ", "event"),
-        Snippet("modifier", "modifier ${'${'}1:name${'}'}}(${'${'}2:args${'}'}}) {
+        Snippet("modifier", "modifier ${'$'}{1:name}(${'$'}{2:args}) {
     _;
 }
 ", "modifier"),
-        Snippet("mapping", "mapping(address => uint256) public ${'${'}1:name${'}'}};
+        Snippet("mapping", "mapping(address => uint256) public ${'$'}{1:name};
 ", "mapping"),
     )
     private val GRAPHQL_SNIPPETS = listOf(
-        Snippet("type", "type ${'${'}1:Name${'}'}} {
-    ${'${'}2:field${'}'}}
+        Snippet("type", "type ${'$'}{1:Name} {
+    ${'$'}{2:field}
 }
 ", "type"),
-        Snippet("input", "input ${'${'}1:Name${'}'}} {
-    ${'${'}2:field${'}'}}
+        Snippet("input", "input ${'$'}{1:Name} {
+    ${'$'}{2:field}
 }
 ", "input type"),
-        Snippet("query", "query ${'${'}1:name${'}'}} {
-    ${'${'}2:field${'}'}}
+        Snippet("query", "query ${'$'}{1:name} {
+    ${'$'}{2:field}
 }
 ", "query"),
-        Snippet("mutation", "mutation ${'${'}1:name${'}'}} {
-    ${'${'}2:field${'}'}}
+        Snippet("mutation", "mutation ${'$'}{1:name} {
+    ${'$'}{2:field}
 }
 ", "mutation"),
-        Snippet("interface", "interface ${'${'}1:Name${'}'}} {
-    ${'${'}2:field${'}'}}
+        Snippet("interface", "interface ${'$'}{1:Name} {
+    ${'$'}{2:field}
 }
 ", "interface"),
     )
     private val PROTOBUF_SNIPPETS = listOf(
-        Snippet("message", "message ${'${'}1:Name${'}'}} {
-    ${'${'}2:field${'}'}}
+        Snippet("message", "message ${'$'}{1:Name} {
+    ${'$'}{2:field}
 }
 ", "message"),
-        Snippet("service", "service ${'${'}1:Name${'}'}} {
-    rpc ${'${'}2:method${'}'}}(${'${'}3:req${'}'}}) returns (${'${'}4:res${'}'}});
+        Snippet("service", "service ${'$'}{1:Name} {
+    rpc ${'$'}{2:method}(${'$'}{3:req}) returns (${'$'}{4:res});
 }
 ", "service"),
-        Snippet("enum", "enum ${'${'}1:Name${'}'}} {
-    ${'${'}2:VALUE${'}'}} = 0;
+        Snippet("enum", "enum ${'$'}{1:Name} {
+    ${'$'}{2:VALUE} = 0;
 }
 ", "enum"),
     )
     private val PASCAL_SNIPPETS = listOf(
-        Snippet("program", "program ${'${'}1:Name${'}'}};
+        Snippet("program", "program ${'$'}{1:Name};
 begin
     
 end.
 ", "program"),
-        Snippet("procedure", "procedure ${'${'}1:name${'}'}}(${'${'}2:args${'}'}});
+        Snippet("procedure", "procedure ${'$'}{1:name}(${'$'}{2:args});
 begin
     
 end;
 ", "procedure"),
-        Snippet("function", "function ${'${'}1:name${'}'}}(${'${'}2:args${'}'}}): ${'${'}3:Type${'}'}};
+        Snippet("function", "function ${'$'}{1:name}(${'$'}{2:args}): ${'$'}{3:Type};
 begin
     
 end;
 ", "function"),
-        Snippet("if", "if ${'${'}1:cond${'}'}} then
+        Snippet("if", "if ${'$'}{1:cond} then
 begin
     
 end;
 ", "if"),
-        Snippet("for", "for ${'${'}1:i${'}'}} := 0 to ${'${'}2:n${'}'}} do
+        Snippet("for", "for ${'$'}{1:i} := 0 to ${'$'}{2:n} do
 begin
     
 end;
 ", "for loop"),
     )
     private val FORTRAN_SNIPPETS = listOf(
-        Snippet("program", "PROGRAM ${'${'}1:NAME${'}'}}
+        Snippet("program", "PROGRAM ${'$'}{1:NAME}
     
-END PROGRAM ${'${'}1:NAME${'}'}}
+END PROGRAM ${'$'}{1:NAME}
 ", "program"),
-        Snippet("subroutine", "SUBROUTINE ${'${'}1:name${'}'}}(${'${'}2:args${'}'}})
+        Snippet("subroutine", "SUBROUTINE ${'$'}{1:name}(${'$'}{2:args})
     
-END SUBROUTINE ${'${'}1:name${'}'}}
+END SUBROUTINE ${'$'}{1:name}
 ", "subroutine"),
-        Snippet("function", "FUNCTION ${'${'}1:name${'}'}}(${'${'}2:args${'}'}}) RESULT(${'${'}3:r${'}'}})
+        Snippet("function", "FUNCTION ${'$'}{1:name}(${'$'}{2:args}) RESULT(${'$'}{3:r})
     
-END FUNCTION ${'${'}1:name${'}'}}
+END FUNCTION ${'$'}{1:name}
 ", "function"),
-        Snippet("if", "IF (${'${'}1:cond${'}'}}) THEN
+        Snippet("if", "IF (${'$'}{1:cond}) THEN
     
 END IF
 ", "if-then"),
-        Snippet("do", "DO ${'${'}1:i${'}'}}=1,${'${'}2:n${'}'}}
+        Snippet("do", "DO ${'$'}{1:i}=1,${'$'}{2:n}
     
 END DO
 ", "do loop"),
     )
     private val COBOL_SNIPPETS = listOf(
         Snippet("program", "IDENTIFICATION DIVISION.
-PROGRAM-ID. ${'${'}1:NAME${'}'}}.
+PROGRAM-ID. ${'$'}{1:NAME}.
 
 PROCEDURE DIVISION.
     
 STOP RUN.
 ", "program"),
-        Snippet("display", "DISPLAY ${'${'}1:message${'}'}}.
+        Snippet("display", "DISPLAY ${'$'}{1:message}.
 ", "display"),
-        Snippet("if", "IF ${'${'}1:cond${'}'}}
+        Snippet("if", "IF ${'$'}{1:cond}
     
 ELSE
     
@@ -1100,234 +1100,218 @@ END-IF.
 ", "if"),
     )
     private val BASIC_SNIPPETS = listOf(
-        Snippet("if", "If ${'${'}1:cond${'}'}} Then
+        Snippet("if", "If ${'$'}{1:cond} Then
     
 End If
 ", "if"),
-        Snippet("for", "For ${'${'}1:i${'}'}} = 0 To ${'${'}2:n${'}'}}
+        Snippet("for", "For ${'$'}{1:i} = 0 To ${'$'}{2:n}
     
-Next ${'${'}1:i${'}'}}
+Next ${'$'}{1:i}
 ", "for loop"),
-        Snippet("sub", "Sub ${'${'}1:name${'}'}}()
+        Snippet("sub", "Sub ${'$'}{1:name}()
     
 End Sub
 ", "sub"),
-        Snippet("function", "Function ${'${'}1:name${'}'}}() As ${'${'}2:Type${'}'}}
+        Snippet("function", "Function ${'$'}{1:name}() As ${'$'}{2:Type}
     
 End Function
 ", "function"),
     )
     private val FSHARP_SNIPPETS = listOf(
-        Snippet("let", "let ${'${'}1:name${'}'}} ${'${'}2:args${'}'}} = ${'${'}3:body${'}'}
+        Snippet("let", "let ${'$'}{1:name} ${'$'}{2:args} = ${'$'}{3:body}
 ", "let binding"),
-        Snippet("letf", "let ${'${'}1:name${'}'}} (${'${'}2:args${'}'}}) =
-    ${'${'}3:body${'}'}
+        Snippet("letf", "let ${'$'}{1:name} (${'$'}{2:args}) =
+    ${'$'}{3:body}
 ", "function"),
-        Snippet("type", "type ${'${'}1:Name${'}'}} =
+        Snippet("type", "type ${'$'}{1:Name} =
     
 ", "type"),
-        Snippet("match", "match ${'${'}1:expr${'}'}} with
-| ${'${'}2:pattern${'}'}} -> ${'${'}3:result${'}'}
+        Snippet("match", "match ${'$'}{1:expr} with
+| ${'$'}{2:pattern} -> ${'$'}{3:result}
 ", "match"),
     )
     private val OCAML_SNIPPETS = listOf(
-        Snippet("let", "let ${'${'}1:name${'}'}} = ${'${'}2:body${'}'}
+        Snippet("let", "let ${'$'}{1:name} = ${'$'}{2:body}
 ", "let binding"),
-        Snippet("letf", "let ${'${'}1:name${'}'}} ${'${'}2:args${'}'}} = ${'${'}3:body${'}'}
+        Snippet("letf", "let ${'$'}{1:name} ${'$'}{2:args} = ${'$'}{3:body}
 ", "function"),
-        Snippet("match", "match ${'${'}1:expr${'}'}} with
-| ${'${'}2:pattern${'}'}} -> ${'${'}3:body${'}'}
+        Snippet("match", "match ${'$'}{1:expr} with
+| ${'$'}{2:pattern} -> ${'$'}{3:body}
 ", "match"),
-        Snippet("type", "type ${'${'}1:name${'}'}} = ${'${'}2:def${'}'}
+        Snippet("type", "type ${'$'}{1:name} = ${'$'}{2:def}
 ", "type"),
     )
     private val CRYSTAL_SNIPPETS = listOf(
-        Snippet("def", "def ${'${'}1:name${'}'}}(${'${'}2:args${'}'}})
-    ${'${'}3:body${'}'}}
+        Snippet("def", "def ${'$'}{1:name}(${'$'}{2:args})
+    ${'$'}{3:body}
 end
 ", "method"),
-        Snippet("class", "class ${'${'}1:Name${'}'}}
+        Snippet("class", "class ${'$'}{1:Name}
     
 end
 ", "class"),
-        Snippet("if", "if ${'${'}1:cond${'}'}}
-    ${'${'}2:body${'}'}}
+        Snippet("if", "if ${'$'}{1:cond}
+    ${'$'}{2:body}
 end
 ", "if"),
-        Snippet("do", "do |${'${'}1:arg${'}'}}|
-    ${'${'}2:body${'}'}}
+        Snippet("do", "do |${'$'}{1:arg}|
+    ${'$'}{2:body}
 end
 ", "block"),
     )
     private val NIM_SNIPPETS = listOf(
-        Snippet("proc", "proc ${'${'}1:name${'}'}}(${'${'}2:args${'}'}}) =
-    ${'${'}3:body${'}'}
+        Snippet("proc", "proc ${'$'}{1:name}(${'$'}{2:args}) =
+    ${'$'}{3:body}
 ", "procedure"),
-        Snippet("type", "type ${'${'}1:Name${'}'}} = object
+        Snippet("type", "type ${'$'}{1:Name} = object
     
 ", "type"),
-        Snippet("if", "if ${'${'}1:cond${'}'}}:
-    ${'${'}2:body${'}'}
+        Snippet("if", "if ${'$'}{1:cond}:
+    ${'$'}{2:body}
 ", "if"),
-        Snippet("for", "for ${'${'}1:i${'}'}} in ${'${'}2:iter${'}'}}:
-    ${'${'}3:body${'}'}
+        Snippet("for", "for ${'$'}{1:i} in ${'$'}{2:iter}:
+    ${'$'}{3:body}
 ", "for loop"),
     )
     private val ZIG_SNIPPETS = listOf(
-        Snippet("fn", "fn ${'${'}1:name${'}'}}(${'${'}2:args${'}'}}) ${'${'}3:ReturnType${'}'}} {
-    ${'${'}4:body${'}'}
+        Snippet("fn", "fn ${'$'}{1:name}(${'$'}{2:args}) ${'$'}{3:ReturnType} {
+    ${'$'}{4:body}
 }
 ", "function"),
-        Snippet("const", "const ${'${'}1:name${'}'}} = ${'${'}2:value${'}'};
+        Snippet("const", "const ${'$'}{1:name} = ${'$'}{2:value};
 ", "constant"),
-        Snippet("if", "if (${'${'}1:cond${'}'}}) {
-    ${'${'}2:body${'}'}
+        Snippet("if", "if (${'$'}{1:cond}) {
+    ${'$'}{2:body}
 }
 ", "if"),
-        Snippet("while", "while (${'${'}1:cond${'}'}}) {
-    ${'${'}2:body${'}'}
+        Snippet("while", "while (${'$'}{1:cond}) {
+    ${'$'}{2:body}
 }
 ", "while loop"),
     )
     private val VLANG_SNIPPETS = listOf(
-        Snippet("fn", "fn ${'${'}1:name${'}'}}(${'${'}2:args${'}'}}) {
-    ${'${'}3:body${'}'}
+        Snippet("fn", "fn ${'$'}{1:name}(${'$'}{2:args}) {
+    ${'$'}{3:body}
 }
 ", "function"),
-        Snippet("struct", "struct ${'${'}1:Name${'}'}} {
+        Snippet("struct", "struct ${'$'}{1:Name} {
     
 }
 ", "struct"),
-        Snippet("if", "if ${'${'}1:cond${'}'}} {
-    ${'${'}2:body${'}'}
+        Snippet("if", "if ${'$'}{1:cond} {
+    ${'$'}{2:body}
 }
 ", "if"),
-        Snippet("for", "for ${'${'}1:i${'}'}} in ${'${'}2:iter${'}'}} {
-    ${'${'}3:body${'}'}
+        Snippet("for", "for ${'$'}{1:i} in ${'$'}{2:iter} {
+    ${'$'}{3:body}
 }
 ", "for loop"),
     )
     private val JULIA_SNIPPETS = listOf(
-        Snippet("function", "function ${'${'}1:name${'}'}}(${'${'}2:args${'}'}})
-    ${'${'}3:body${'}'}
+        Snippet("function", "function ${'$'}{1:name}(${'$'}{2:args})
+    ${'$'}{3:body}
 end
 ", "function"),
-        Snippet("struct", "struct ${'${'}1:Name${'}'}}
+        Snippet("struct", "struct ${'$'}{1:Name}
     
 end
 ", "struct"),
-        Snippet("if", "if ${'${'}1:cond${'}'}}
-    ${'${'}2:body${'}'}
+        Snippet("if", "if ${'$'}{1:cond}
+    ${'$'}{2:body}
 end
 ", "if"),
-        Snippet("for", "for ${'${'}1:i${'}'}} in ${'${'}2:iter${'}'}}
-    ${'${'}3:body${'}'}
+        Snippet("for", "for ${'$'}{1:i} in ${'$'}{2:iter}
+    ${'$'}{3:body}
 end
 ", "for loop"),
     )
     private val PERL_SNIPPETS = listOf(
-        Snippet("sub", "sub ${'${'}1:name${'}'}} {
-    my (${'${'}2:args${'}'}}) = @_;
-    ${'${'}3:body${'}'}
+        Snippet("sub", "sub ${'$'}{1:name} {
+    my (${'$'}{2:args}) = @_;
+    ${'$'}{3:body}
 }
 ", "subroutine"),
-        Snippet("if", "if (${'${'}1:cond${'}'}}) {
-    ${'${'}2:body${'}'}
+        Snippet("if", "if (${'$'}{1:cond}) {
+    ${'$'}{2:body}
 }
 ", "if"),
-        Snippet("for", "for my ${'${'}1:i${'}'}} (@${'${'}2:list${'}'}}) {
-    ${'${'}3:body${'}'}
+        Snippet("for", "for my ${'$'}{1:i} (@${'$'}{2:list}) {
+    ${'$'}{3:body}
 }
 ", "for loop"),
-        Snippet("while", "while (${'${'}1:cond${'}'}}) {
-    ${'${'}2:body${'}'}
+        Snippet("while", "while (${'$'}{1:cond}) {
+    ${'$'}{2:body}
 }
 ", "while loop"),
     )
     private val POWERSHELL_SNIPPETS = listOf(
-        Snippet("function", "function ${'${'}1:Name${'}'}} {
-    ${'${'}2:body${'}'}
+        Snippet("function", "function ${'$'}{1:Name} {
+    ${'$'}{2:body}
 }
 ", "function"),
-        Snippet("if", "if (${'${'}1:cond${'}'}}) {
-    ${'${'}2:body${'}'}
+        Snippet("if", "if (${'$'}{1:cond}) {
+    ${'$'}{2:body}
 }
 ", "if"),
-        Snippet("foreach", "foreach (${'${'}1:item${'}'}} in ${'${'}2:coll${'}'}}) {
-    ${'${'}3:body${'}'}
+        Snippet("foreach", "foreach (${'$'}{1:item} in ${'$'}{2:coll}) {
+    ${'$'}{3:body}
 }
 ", "foreach loop"),
         Snippet("try", "try {
-    ${'${'}1:body${'}'}
+    ${'$'}{1:body}
 } catch {
-    ${'${'}2:err${'}'}
+    ${'$'}{2:err}
 }
 ", "try/catch"),
     )
     private val VIM_SNIPPETS = listOf(
-        Snippet("function", "function! ${'${'}1:Name${'}'}}()
+        Snippet("function", "function! ${'$'}{1:Name}()
     
 endfunction
 ", "function"),
-        Snippet("if", "if ${'${'}1:cond${'}'}}
+        Snippet("if", "if ${'$'}{1:cond}
     
 endif
 ", "if"),
-        Snippet("map", "nnoremap ${'${'}1:key${'}'}} ${'${'}2:action${'}'}
+        Snippet("map", "nnoremap ${'$'}{1:key} ${'$'}{2:action}
 ", "mapping"),
-        Snippet("autocmd", "autocmd ${'${'}1:event${'}'}} ${'${'}2:pattern${'}'}} ${'${'}3:cmd${'}'}
+        Snippet("autocmd", "autocmd ${'$'}{1:event} ${'$'}{2:pattern} ${'$'}{3:cmd}
 ", "autocmd"),
     )
     private val EMACSLISP_SNIPPETS = listOf(
-        Snippet("defun", "(defun ${'${'}1:name${'}'}} ()
-  ${'${'}2:body${'}'}})
+        Snippet("defun", "(defun ${'$'}{1:name} ()
+  ${'$'}{2:body})
 ", "function"),
-        Snippet("defvar", "(defvar ${'${'}1:name${'}'}} ${'${'}2:value${'}'}})
+        Snippet("defvar", "(defvar ${'$'}{1:name} ${'$'}{2:value})
 ", "variable"),
-        Snippet("let", "(let (${'${'}1:bindings${'}'}})
-  ${'${'}2:body${'}'}})
+        Snippet("let", "(let (${'$'}{1:bindings})
+  ${'$'}{2:body})
 ", "let binding"),
-        Snippet("if", "(if ${'${'}1:cond${'}'}}
-    ${'${'}2:then${'}'}
-  ${'${'}3:else${'}'}})
+        Snippet("if", "(if ${'$'}{1:cond}
+    ${'$'}{2:then}
+  ${'$'}{3:else})
 ", "if"),
     )
     private val LISP_SNIPPETS = listOf(
-        Snippet("define", "(define (${'${'}1:name${'}'}} ${'${'}2:args${'}'}})
-  ${'${'}3:body${'}'}})
+        Snippet("define", "(define (${'$'}{1:name} ${'$'}{2:args})
+  ${'$'}{3:body})
 ", "function"),
-        Snippet("let", "(let ((${'${'}1:var${'}'}} ${'${'}2:val${'}'}}))
-  ${'${'}3:body${'}'}})
+        Snippet("let", "(let ((${'$'}{1:var} ${'$'}{2:val}))
+  ${'$'}{3:body})
 ", "let binding"),
-        Snippet("if", "(if ${'${'}1:cond${'}'}}
-    ${'${'}2:then${'}'}
-    ${'${'}3:else${'}'}})
+        Snippet("if", "(if ${'$'}{1:cond}
+    ${'$'}{2:then}
+    ${'$'}{3:else})
 ", "if"),
-        Snippet("lambda", "(lambda (${'${'}1:args${'}'}}) ${'${'}2:body${'}'}})
+        Snippet("lambda", "(lambda (${'$'}{1:args}) ${'$'}{2:body})
 ", "lambda"),
     )
     private val TERRAFORM_SNIPPETS = listOf(
-        Snippet("resource", "resource "${'${'}1:type${'}'}}" "${'${'}2:name${'}'}}" {
-    ${'${'}3:body${'}'}
-}
-", "resource"),
-        Snippet("data", "data "${'${'}1:type${'}'}}" "${'${'}2:name${'}'}}" {
-    ${'${'}3:body${'}'}
-}
-", "data source"),
-        Snippet("variable", "variable "${'${'}1:name${'}'}}" {
-    type = ${'${'}2:string${'}'}
-    default = ${'${'}3:value${'}'}
-}
-", "variable"),
-        Snippet("output", "output "${'${'}1:name${'}'}}" {
-    value = ${'${'}2:expr${'}'}
-}
-", "output"),
-        Snippet("provider", "provider "${'${'}1:name${'}'}}" {
-    ${'${'}2:body${'}'}
-}
-", "provider"),
+        Snippet("resource", "resource \"${'$'}{1:type}\" \"${'$'}{2:name}\" {\n    ${'$'}{3:body}\n}\n", "resource"),
+        Snippet("data", "data \"${'$'}{1:type}\" \"${'$'}{2:name}\" {\n    ${'$'}{3:body}\n}\n", "data source"),
+        Snippet("variable", "variable \"${'$'}{1:name}\" {\n    type = ${'$'}{2:string}\n    default = ${'$'}{3:value}\n}\n", "variable"),
+        Snippet("output", "output \"${'$'}{1:name}\" {\n    value = ${'$'}{2:expr}\n}\n", "output"),
+        Snippet("provider", "provider \"${'$'}{1:name}\" {\n    ${'$'}{2:body}\n}\n", "provider"),
     )
 
     /**

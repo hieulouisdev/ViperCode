@@ -48,7 +48,7 @@ object CheatSheets {
         sections = listOf(
             "Modes" to "i / a / o   enter insert mode\nEsc          back to normal\nv            visual\nV            visual line\nCtrl+v       block",
             "Save + quit" to ":w            write\n:q            quit\n:wq / :x      write+quit\n:q!           force quit\nZZ / ZQ       write+quit / quit",
-            "Movement" to "h j k l       left/down/up/right\nw / b         next/previous word\n0 / ^ / \$    first/first-non-ws/last col\ngg / G        first/last line\nCtrl+d / u    half-page down/up",
+            "Movement" to "h j k l       left/down/up/right\nw / b         next/previous word\n0 / ^ / \${'$'}    first/first-non-ws/last col\ngg / G        first/last line\nCtrl+d / u    half-page down/up",
             "Edit" to "dd            delete line\ncc            change line\nyy            yank (copy) line\np / P         paste after/before\nu / Ctrl+r    undo/redo",
             "Search" to "/pattern      search forward\n?pattern      search backward\nn / N         next/previous match\n:%s/old/new/g replace all",
             "Windows" to ":split / :vsplit   horizontal/vertical split\nCtrl+w h/j/k/l     move between splits\n:q                 close split",
@@ -61,7 +61,7 @@ object CheatSheets {
         title = "Regex cheat sheet",
         description = "Regular expression quick reference (PCRE flavour)",
         sections = listOf(
-            "Anchors" to "^     start of line\n\$     end of line\n\\b    word boundary\n\\B    non-word boundary\n\\A    start of string\n\\z    end of string",
+            "Anchors" to "^     start of line\n\${'$'}     end of line\n\\b    word boundary\n\\B    non-word boundary\n\\A    start of string\n\\z    end of string",
             "Character classes" to ".     any char\n\\d \\D  digit / non-digit\n\\w \\W  word / non-word\n\\s \\S  whitespace / non-ws\n[abc]  any of a,b,c\n[^abc] none of a,b,c\n[a-z]  range",
             "Quantifiers" to "*       0 or more\n+       1 or more\n?       0 or 1\n{n}     exactly n\n{n,}    n or more\n{n,m}   between n and m",
             "Groups" to "(abc)   capture group\n(?:abc) non-capture group\n(?=abc) positive lookahead\n(?!abc) negative lookahead\n(?P<name>abc) named group",
@@ -164,12 +164,12 @@ object CheatSheets {
         title = "Shell cheat sheet",
         description = "Bash + POSIX shell essentials",
         sections = listOf(
-            "Variables" to "FOO=\"hello\"\necho $FOO\nread -p \"Name: \" name\nlocal var=1   # function scope\n${var:-default}\n${var:=default}\n${#var}        # length\n${var/old/new}",
-            "Conditionals" to "if [ -f file ]; then …; fi\nif [[ \"$x\" == \"hi\" ]]; then …; fi\ncase $x in\n  a) echo a;;\n  b|c) echo bc;;\n  *) echo default;;\nesac",
-            "Loops" to "for i in 1 2 3; do echo $i; done\nfor f in *.txt; do mv \"$f\" \"${f%.txt}.md\"; done\nwhile read line; do echo $line; done < file\nuntil false; do …; done",
+            "Variables" to "FOO=\"hello\"\necho ${'$'}FOO\nread -p \"Name: \" name\nlocal var=1   # function scope\n${'$'}{var:-default}\n${'$'}{var:=default}\n${'$'}{#var}        # length\n${'$'}{var/old/new}",
+            "Conditionals" to "if [ -f file ]; then …; fi\nif [[ \"${'$'}x\" == \"hi\" ]]; then …; fi\ncase ${'$'}x in\n  a) echo a;;\n  b|c) echo bc;;\n  *) echo default;;\nesac",
+            "Loops" to "for i in 1 2 3; do echo ${'$'}i; done\nfor f in *.txt; do mv \"${'$'}f\" \"${'$'}{f%.txt}.md\"; done\nwhile read line; do echo ${'$'}line; done < file\nuntil false; do …; done",
             "Redirection" to "cmd > file           # stdout\ncmd >> file          # append\ncmd 2> file          # stderr\ncmd > out 2> err\ncmd &> file          # both\ncmd | tee file       # tee\ncmd < file           # stdin",
-            "One-liners" to "find . -name '*.kt' -type f\ngrep -rn 'TODO' .\nsed -i 's/old/new/g' file\nawk '{print $2}' file\nxargs -I{} cmd {}\ncut -d, -f2 file.csv\nsort | uniq -c | sort -rn",
-            "Subshells" to "result=$(cmd)\n( cd /tmp && do_stuff )\n{ cmd1; cmd2; } > out\ntrap 'cleanup' EXIT",
+            "One-liners" to "find . -name '*.kt' -type f\ngrep -rn 'TODO' .\nsed -i 's/old/new/g' file\nawk '{print ${'$'}2}' file\nxargs -I{} cmd {}\ncut -d, -f2 file.csv\nsort | uniq -c | sort -rn",
+            "Subshells" to "result=${'$'}(cmd)\n( cd /tmp && do_stuff )\n{ cmd1; cmd2; } > out\ntrap 'cleanup' EXIT",
         ),
     )
 
